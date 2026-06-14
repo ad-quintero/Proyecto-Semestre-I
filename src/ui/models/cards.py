@@ -1,5 +1,5 @@
 import flet as ft
-from utils.cards import CardView, Suit
+from utils.cards import CardView, Suit, Deck
 
 SUIT_LOOKUP = {
     Suit.HEARTS: ft.Colors.RED_600,
@@ -16,8 +16,11 @@ class CardControl(ft.Container):
         self.height = height
         self.width = int(height * 0.7)  # Standard card aspect ratio
         self.border_radius = 8
-        self.animate = ft.Animation(300, ft.AnimationCurve.EASE_OUT)
+        self.animate_scale = ft.Animation(100, ft.AnimationCurve.EASE_OUT)
         self.card_view = card_view
+        self.scale = 1
+
+        self.on_hover = self._on_hover
 
         if not card_view.is_face_up or card_view is None:
             self._render_face_down()
@@ -52,3 +55,13 @@ class CardControl(ft.Container):
             fit=ft.BoxFit.CONTAIN,
             border_radius=self.border_radius,
         )
+
+    def _on_hover(self, e: ft.HoverEvent):
+        if e.data == True and self.card_view.is_face_up:
+            self.scale = 1.15
+            self.shadow = ft.BoxShadow(blur_radius=8, color=ft.Colors.with_opacity(0.3, ft.Colors.BLACK))
+        else:
+            self.scale = 1
+            self.shadow = ft.BoxShadow(blur_radius=4, color=ft.Colors.with_opacity(0.15, ft.Colors.BLACK))
+        
+        self.update()
