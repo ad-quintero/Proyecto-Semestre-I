@@ -3,7 +3,7 @@ from casino.player import PlayerController
 import os
 
 import flet as ft
-from ui.models.cards import CardControl, DeckControl
+from ui.models.cards import CardControl
 from utils.cards import Card, CardView, Rank, Suit
 from pathlib import Path
 
@@ -16,9 +16,8 @@ def main():
 def ui(page: ft.Page):
     card = Card(suit=Suit.SPADES, rank=Rank.ACE)
 
-    page.title = "Flet on Arch!"
-    page.add(ft.Text("Hello, Arch Linux with KDE!"))
-    page.add(DeckControl(count=52)) 
+    page.title = "Digital Casino"
+    page.add(CardControl(CardView.from_card(card)))
 
 
 if __name__ == "__main__":
