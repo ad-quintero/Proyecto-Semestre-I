@@ -1,5 +1,4 @@
 from utils.commands.command import CommandSchema
-from utils.terminal import draw_bg, term, BG_COLOR
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from enum import Enum

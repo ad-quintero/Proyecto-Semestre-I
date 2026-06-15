@@ -9,7 +9,6 @@ if TYPE_CHECKING:
 from utils.commands.command_manager import CommandManager
 from utils.commands.command_manager import CommandManager
 from utils.event_listener import EventBus
-from utils.terminal import term
 from utils.cards import Deck, Card, CardView
 from casino.player import PlayerAccount, PlayerController
 from dataclasses import dataclass
