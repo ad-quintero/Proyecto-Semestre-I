@@ -3,7 +3,6 @@ annotated-types==0.7.0
 anyio==4.13.0
 arrow==1.4.0
 binaryornot==0.4.4
-blessed==1.38.0
 -e git+https://github.com/ad-quintero/Proyecto-Semestre-I@f557127c9f4e973c3c7cd0bb47f145acd0456e72#egg=casino_project
 certifi==2026.5.20
 chardet==5.2.0
