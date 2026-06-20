@@ -42,8 +42,35 @@ class HoldCardCommand(Command):
         
         if idx > 4:
             raise IndexError("Card index must be between 0 and 4.")
+        self.idx = idx
 
-        self.game.hold_card(idx)
+    def execute(self):
+        self.game.hold_card(self.idx)
+
+class DiscardCardsCommand(Command):
+    game: Poker
+
+    def __init__(self, game: Poker):
+        super().__init__(game)
+
+
+    def execute(self):
+        self.game.discard_cards()
+
+class NewHandCommand(Command):
+    game: Poker
+
+    def __init__(self, game: Poker):
+        super().__init__(game)
+
+    def execute(self):
+        self.game.finish_hand(reset=True)
+
+class EndHandCommand(Command):
+    game: Poker
+
+    def __init__(self, game: Poker):
+        super().__init__(game)
 
     def execute(self):
         self.game.finish_hand(reset=False)

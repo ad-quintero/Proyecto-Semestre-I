@@ -55,9 +55,7 @@ class PokerPlayerView(PlayerView):
 
 @dataclass(frozen=True)
 class PokerSnapshot(Snapshot):
-    active_player_id: UUID
-    """The id of the current active player, i.e. the one whose turn it is."""
-    player: PokerPlayerView
+    active_player: PokerPlayerView
     """The current dealer's data."""
     community_cards: list[CardStateView]
     """A list of the community cards on the table."""
@@ -65,6 +63,8 @@ class PokerSnapshot(Snapshot):
     """The bet for the current hand."""
     payout_multiplier: Optional[int] 
     """The multiplier of the bet earnings. Included only on hand end."""
+    final_hand: Optional[tuple[HandRank, list[CardStateView]]]
+    """The rank and tie-breaker vector of the player's final hand, determined at the end"""
     available_commands: tuple[CommandSchema]
     """The list of available commands for the current active player, which can be used for rendering the UI and for AI decision-making."""
 
@@ -162,20 +162,30 @@ class Poker(Game):
         self.deck = Deck()
         self.community_cards = []
         self.bet = 0
+        self.payout_multiplier = None 
+        # They payout multiplier is determined at the end of the hand based on the hand rank, 
+        # and is used to calculate the final earnings from the bet. It is included in the snapshot only 
+        # at the end of the hand, since it is not relevant during the hand.
+
+        self.game_phase = None
 
     @property
     def active_player(self) -> PokerPlayer:
         """Returns the current player."""
-        return self.all_players[self.current_player_idx]
+        return self.player
     
     def start(self):
         # Reset all game state for the new hand
         self.deck = Deck()
         self.community_cards = []
 
-        self.change_phase(PokerPhase.DEALING_CARDS, self.get_snapshot())
-        self.deal_cards()
-        self.change_phase(PokerPhase.PRE_FLOP, self.get_snapshot())
+        # If the player ended the last hand with a bet, we carry it over to the new hand as a starting bet,
+        # capping it to the player's available funds, and ensuring it's not negative
+        self.bet = min(0, self.bet, self.player.funds) 
+
+        self.change_phase(PokerPhase.PLAYER_TURN, self.get_snapshot())
+        self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
+        self.event_bus.notify(GenericEvent.GAME_START, self.get_snapshot())
 
     def start_round(self):
         self.deal_cards()
@@ -192,6 +202,9 @@ class Poker(Game):
         
         self.player.funds -= bet
         self.bet += bet
+
+        self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
+        self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
     
     def remove_bet(self, amount: float):
         if amount < 0:
@@ -202,6 +215,9 @@ class Poker(Game):
         
         self.player.funds += amount
         self.bet = min(0, self.bet - amount)
+    
+        self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
+        self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
 
     def deal_cards(self):
         """Deals the starting 5 hands."""
@@ -210,13 +226,20 @@ class Poker(Game):
 
         self.community_cards = [CardState(card, False) for card in self.deck.deal(5)]
 
+        self.change_phase(PokerPhase.PLAYER_TURN)
         self.event_bus.notify(PokerEvent.DEAL_CARDS, self.get_snapshot())
+        self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
+        self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
 
     def hold_card(self, idx):
         """
             Marks the card at the given index for holding.
         """
         self.community_cards[idx].hold = True
+
+        self.event_bus.notify(PokerEvent.CARD_HELD, self.get_snapshot())
+        self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
+        self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
 
     def discard_cards(self):
         """
@@ -226,21 +249,27 @@ class Poker(Game):
         for idx, card in enumerate(self.community_cards):
             if not card.hold:
                 self.community_cards[idx] = CardState(self.deck.deal()[0], True)
+        
+        self.event_bus.notify(PokerEvent.CARDS_DISCARDED, self.get_snapshot())        
+        self.end_hand()
 
     def end_hand(self):
         """Handles the end of a hand, determines hand, pays out chips, and transitions."""
-        self.change_phase(PokerPhase.SHOWDOWN, self.get_snapshot(True))
+        self.change_phase(PokerPhase.SHOWDOWN, self.get_snapshot())
 
         multiplier = 0
-        hand_rank, cards = Poker.evaluate_hand(self.community_cards)
+        hand_rank, cards = Poker.evaluate_hand([card.card for card in self.community_cards])
 
         # Only pairs with jacks or better pay out. Everything else pays out according to the table
         if hand_rank != HandRank.PAIR or (hand_rank == HandRank.PAIR and sum(1 for card in cards if card >= CardRank.JACK)):
             multiplier = payout_table[hand_rank]
 
         self.player.funds += self.bet * multiplier
+        self.payout_multiplier = multiplier
 
-        self.event_bus.notify(PokerEvent.AVAILABLE_COMMANDS, self.get_snapshot(True))
+        self.event_bus.notify(PokerEvent.HAND_OVER, self.get_snapshot())
+
+        self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
         self.event_bus.notify(
             GenericEvent.TURN_START, self.player.to_view(cards_visible=True)
         )
@@ -363,46 +392,71 @@ class Poker(Game):
         return best_score
 
     def get_available_commands(self) -> tuple[CommandSchema]:
-        if self.game_phase == PokerPhase.SHOWDOWN:
-            return (
-                CommandSchema(
+        no_comm_cards = len(self.community_cards) == 0
+
+        comms = [
+            CommandSchema(
                     display_name="New Hand",
-                    command_class=commands.ResetHandCOmmand,
-                ),
-                CommandSchema(
+                    command_class=commands.NewHandCommand,
+                ) if self.game_phase == PokerPhase.SHOWDOWN else None,
+            CommandSchema(
                     display_name="End Game",
                     command_class=commands.EndHandCommand,
-                ),
-            )
-        else:
-            return (
-                CommandSchema(
-                    display_name="Call",
-                    command_class=commands.CallCommand,
-                ),
-                CommandSchema(
-                    display_name="Raise",
-                    command_class=commands.RaiseCommand,
+                ) if self.game_phase == PokerPhase.SHOWDOWN else None,
+            CommandSchema(
+                    display_name="Start Round",
+                    command_class=commands.StartRoundCommand,
+            ) if self.game_phase == PokerPhase.PLAYER_TURN and len(self.community_cards) == 0 and self.bet > 0 else None,
+            CommandSchema(
+                    display_name="Place Bet",
+                    command_class=commands.PlaceBetCommand,
                     parameters=[
                         CommandParameter(
                             name="amount",
-                            prompt_text="How much would you like to raise to? ",
+                            prompt_text="How much would you like to bet? ",
                             parser=float,
                         )
                     ],
-                ),
-                CommandSchema(
-                    display_name="Fold",
-                    command_class=commands.FoldCommand,
-                ),
-            )
+                ) if self.game_phase == PokerPhase.PLAYER_TURN and no_comm_cards else None,
+            CommandSchema(
+                    display_name="Remove Bet",
+                    command_class=commands.RemoveBetCommand,
+                    parameters=[
+                        CommandParameter(
+                            name="amount",
+                            prompt_text="How much would you like to remove from your bet? ",
+                            parser=float,
+                        )
+                    ],
+                ) if self.game_phase == PokerPhase.PLAYER_TURN and self.bet > 0 and no_comm_cards else None,
+            CommandSchema(
+                    display_name="Hold Card",
+                    command_class=commands.HoldCardCommand,
+                    parameters=[
+                        CommandParameter(
+                            name="idx",
+                            prompt_text="Which card would you like to hold? (0-4) ",
+                            parser=int,
+                        )
+                    ],
+                ) if self.game_phase == PokerPhase.PLAYER_TURN and not no_comm_cards else None, # Using the len of community cards to determine if cards have been dealt, since the player should only be able to hold/discard after being dealt cards
+            CommandSchema(
+                    display_name="Discard Cards",
+                    command_class=commands.DiscardCardsCommand,
+                ) if self.game_phase == PokerPhase.PLAYER_TURN and not no_comm_cards else None,
+        ]
+
+        return tuple(filter(None, comms))
 
     def get_snapshot(self) -> PokerSnapshot:
         """Returns a snapshot of the current game state, which can be used for rendering and for AI decision-making."""
         return PokerSnapshot(
             active_player=self.active_player.to_view(),
             community_cards=[
-                CardStateView(CardView.from_card(card, True), hold) for card, hold in self.community_cards
+                CardStateView(CardView.from_card(card_state.card, True), card_state.hold) for card_state in self.community_cards
             ],
+            bet=self.bet,
+            payout_multiplier=self.payout_multiplier,
+            final_hand=self.evaluate_hand([card_state.card for card_state in self.community_cards]) if self.game_phase == PokerPhase.SHOWDOWN else None,
             available_commands=self.get_available_commands(),
         )
