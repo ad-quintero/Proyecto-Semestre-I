@@ -68,7 +68,8 @@ class BlackjackTerminalRenderer(Renderer):
 
 blackjack_table_positions = {
     "deck": "absolute left-9/10 top-10 rotate-45",
-    "chips": "absolute left-9/10 bottom-10",
+    "chips": "absolute left-9/10 bottom-1/10",
+    "pot": "absolute bottom-1/2 left-1/4",
     "dealer_cards": "absolute top-10 left-1/2 -translate-x-1/2",
     "player_cards": "absolute top-8/10 left-1/2 -translate-x-1/2",
     "buttons": "absolute top-1/2 right-5 -translate-x-1/2",
@@ -101,6 +102,12 @@ class BlackjackRenderer(Renderer):
         self.remove_bet_cmd: CommandSchema = None
 
         self.chips = [PlaceBetData(chip_value=chip.value, can_place_bet=False) for chip in ChipValue]
+        self.active_bets: dict[int, int] = {} # Maps chip value to quantity of that chip currently bet
+
+    @property
+    def total_bet(self) -> str:
+        total = sum(value * key for key, value in self.active_bets.items())
+        return f"Current bet: ${total}" if total > 0 else ""
 
     def build_ui(self):
         self.container = ui.element('div').classes('relative size-full flex items-stretch justify-between game-container')
@@ -114,17 +121,77 @@ class BlackjackRenderer(Renderer):
 
                 self.player_hand = ui.row().classes(blackjack_table_positions["player_cards"])
                 self.dealer_hand = ui.row().classes(blackjack_table_positions["dealer_cards"])
-            
+
+                self.pot = ui.label(f"").classes(f"{blackjack_table_positions['pot']} translate-y-10 left-1/2! -translate-x-1/2 text-sm text-white mt-2")
+                self.pot.bind_text_from(self, 'total_bet')
+                # Chips
                 for i, chip in enumerate(self.chips):
-                    def place_bet_closure(v):
+                    btn_class = f"{blackjack_table_positions['chips']} -translate-y-[{i*110}%] cursor-pointer disabled:cursor-not-allowed"
+                    btn = ui.element("button").classes(btn_class)
+
+                    async def place_bet_closure(v, idx=i):
                         if not self.place_bet_cmd:
                             return
-
+                        
                         cmd = self.place_bet_cmd
                         cmd.parameters[0].value = v
                         self.event_bus.notify(BlackJackCommandRequest.PLACE_BET, cmd)
 
-                    btn = ui.element("button").classes(f"{blackjack_table_positions['chips']} chips -translate-y-[{i*110}%] cursor-pointer disabled:cursor-not-allowed").on("click", lambda _, v=chip.chip_value: place_bet_closure(v))
+                        bet_exists = self.active_bets.get(v)
+
+                        if bet_exists and bet_exists > 0:
+                            self.active_bets[v] += 1
+                        else:
+                            self.active_bets[v] = 1
+
+                            # Keep Tailwind for everything except the dynamic math
+                            shared_base = "absolute transition-all duration-300 ease-in-out"
+
+                            btn_remove = ui.element("button").classes(f"{shared_base} {blackjack_table_positions['chips']}")
+                            # Apply the dynamic Y transform via inline styles
+                            btn_remove.style(f"transform: translateY(-{idx*110}%);")
+
+                            with btn_remove:
+                                ChipUI(ChipValue(v))
+
+                            await asyncio.sleep(0.01)
+
+                            # Move to pot: update tailwind positions AND clear/override the inline style
+                            btn_remove.classes(
+                                add=blackjack_table_positions['pot'], 
+                                remove=blackjack_table_positions['chips']
+                            )
+                            # Switch the transform direction via inline style
+                            btn_remove.style(f"transform: translateX({idx*110}%);")
+
+                            await asyncio.sleep(0.3)
+
+                            btn_remove.classes("cursor-pointer")
+
+                            with btn_remove:
+                                count = ui.label(f"x{self.active_bets.get(v, 0)}").classes("absolute -top-2 -right-2 text-xs font-bold text-white bg-black rounded-full w-5 h-5 flex items-center justify-center")
+                                count.bind_text_from(self.active_bets,v, backward=lambda x: f"x{x}")
+
+                            
+                            def remove_bet_closure(v, btn: ui.element):
+                                if not self.remove_bet_cmd:
+                                    return
+                                
+                                bet_exists = self.active_bets.get(v)
+
+                                if bet_exists and bet_exists > 0:
+                                    self.active_bets[v] -= 1
+
+                                    cmd = self.remove_bet_cmd
+                                    cmd.parameters[0].value = v
+                                    self.event_bus.notify(BlackJackCommandRequest.REMOVE_BET, cmd)
+
+                                    if self.active_bets[v] <= 0:
+                                        btn.delete()
+
+                            btn_remove.on("click", lambda _, v=v, btn=btn_remove: remove_bet_closure(v, btn))
+
+                    btn.on("click", lambda _, v=chip.chip_value, idx=i: place_bet_closure(v, idx))
                     
                     binding.bind_to(
                         self.chips[i], 'can_place_bet', 
@@ -162,9 +229,9 @@ class BlackjackRenderer(Renderer):
                             for chip in self.chips:
                                 chip.can_place_bet = snapshot.active_player.balance >= chip.chip_value and self.can_place_bets
 
-    def change_bet(self, snapshot: BlackjackSnapshot):
-        # This is a placeholder for handling bet changes in the UI. You can implement a bet slider or input field here.
-        pass
+    def change_bet(self, _snapshot: BlackjackSnapshot): 
+        pass       
+        # self.pot.set_text(f"Current Bet: ${sum(value * key for key, value in self.active_bets.items())}")
 
     async def player_hit(self, snapshot: BlackjackSnapshot):
         # Keep the master container open so NiceGUI knows where to position these root containers

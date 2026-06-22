@@ -147,7 +147,7 @@ class Blackjack(Game):
         self.bet = buyin.amount
         self.game_phase = BlackjackPhase.PLAYER_TURN
 
-        self.bet: int
+        self.bet: int = 0
 
     @property
     def active_player(self) -> Optional[BlackJackPlayer]:
@@ -169,7 +169,7 @@ class Blackjack(Game):
         if amount > self.player.balance:
             raise ValueError("Bet amount cannot exceed player's current balance.")
 
-        self.bet = amount
+        self.bet += amount
         self.player.balance -= amount
 
         self.event_bus.notify(BlackjackEvent.PLACE_BET, self.get_snapshot())
@@ -275,7 +275,7 @@ class Blackjack(Game):
         comms = {
             BlackJackCommandRequest.PLACE_BET: CommandSchema("Place Bet", commands.PlaceBetCommand, parameters=[CommandParameter(name="amount", prompt_text="Enter bet amount:", parser=int)]) if self.game_phase == BlackjackPhase.PLAYER_TURN and not self.player.cards else None,
             BlackJackCommandRequest.REMOVE_BET: CommandSchema("Remove Bet", commands.RemoveBetCommand, parameters=[CommandParameter(name="amount", prompt_text="Enter amount to remove:", parser=int)]) if self.game_phase == BlackjackPhase.PLAYER_TURN and not self.player.cards else None,
-            BlackJackCommandRequest.START_ROUND: CommandSchema("Start Round", commands.StartRoundCommand) if self.bet > 0 and self.player.cards else None,
+            BlackJackCommandRequest.START_ROUND: CommandSchema("Start Round", commands.StartRoundCommand) if self.bet > 0 and not self.player.cards else None,
             BlackJackCommandRequest.HIT: CommandSchema("Hit", commands.HitCommand) if self.game_phase == BlackjackPhase.PLAYER_TURN and self.player.cards else None,
             BlackJackCommandRequest.STAND: CommandSchema("Stand", commands.StandCommand) if self.game_phase == BlackjackPhase.PLAYER_TURN and self.player.cards else None,
         }

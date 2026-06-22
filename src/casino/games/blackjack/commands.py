@@ -17,7 +17,6 @@ class PlaceBetCommand(Command):
         self.amount = amount
 
     def execute(self):
-        print("Executing PlaceBetCommand with amount:", self.amount)
         self.game.place_bet(self.amount)
 
 class RemoveBetCommand(Command):
