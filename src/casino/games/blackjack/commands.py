@@ -6,6 +6,42 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .blackjack import Blackjack
 
+class PlaceBetCommand(Command):
+    """Command to handle the player's bet placement."""
+
+    game: Blackjack
+    amount: int
+
+    def __init__(self, game: Blackjack, amount: int):
+        self.game = game
+        self.amount = amount
+
+    def execute(self):
+        print("Executing PlaceBetCommand with amount:", self.amount)
+        self.game.place_bet(self.amount)
+
+class RemoveBetCommand(Command):
+    """Command to handle the player's bet removal (if they change their mind before the round starts)."""
+
+    game: Blackjack
+
+    def __init__(self, game: Blackjack, amount: int):
+        self.game = game
+        self.amount = amount
+
+    def execute(self):
+        self.game.remove_bet(self.amount)
+
+class StartRoundCommand(Command):
+    """Command to start the round after placing bets."""
+
+    game: Blackjack
+
+    def __init__(self, game: Blackjack):
+        self.game = game
+
+    def execute(self):
+        self.game.start_round()
 
 class HitCommand(Command):
     """Command to handle the player's decision to hit (take another card)."""

@@ -1,8 +1,8 @@
 import uuid
 
-from casino.games.blackjack.renderer import BlackjackTerminalRenderer
+from casino.games.blackjack.renderer import BlackjackRenderer, BlackjackTerminalRenderer
 from casino.player import PlayerAccount
-from casino.games.blackjack.blackjack import Blackjack
+from casino.games.blackjack.blackjack import Blackjack, BlackjackManager
 from casino.games.poker.poker import Poker, PokerManager
 from casino.games.poker.renderer import PokerTerminalRenderer
 from casino.games.game_manager import GameManager
@@ -11,8 +11,7 @@ from dataclasses import dataclass
 from utils.renderer import Renderer
 from .games.generic_events import GenericEvent
 from utils.commands.command_manager import CommandManager
-from utils.event_listener import EventBus
-from typing import Type
+from typing import Type, Literal
 from casino.games.slot_machine.slot_machine import (
     SlotMachine,
     SlotMachineManager,
@@ -20,6 +19,9 @@ from casino.games.slot_machine.slot_machine import (
 from casino.games.slot_machine.renderer import SlotMachineTerminalRenderer
 from casino.games.roulette.roulette import Roulette, RouletteManager
 from casino.games.roulette.renderer import RouletteTerminalRenderer
+from casino.renderer import CasinoRenderer
+
+from nicegui import ui
 
 @dataclass
 class CasinoGame:
@@ -42,13 +44,14 @@ class Casino:
     def __init__(self, name: str):
         self.name = name
         self.game_active = False
+        self.active_game_manager: GameManager | None = None
 
         self.games = [
             CasinoGame(
                 name="Blackjack",
                 game=Blackjack,
-                manager=GameManager,
-                renderer=BlackjackTerminalRenderer,
+                manager=BlackjackManager,
+                renderer=BlackjackRenderer,
             ),
             CasinoGame(
                 name="Poker", game=Poker, manager=PokerManager, renderer=PokerTerminalRenderer
@@ -67,61 +70,77 @@ class Casino:
             )
         ]
 
+        self.active_page: CasinoRenderer = CasinoRenderer(on_game_selected=self.on_game_selected)
         self.player = PlayerAccount(id=uuid.uuid4(), name="Player1", balance=1000)
 
-    def menu(self):
-        while True:
-            print(f"Welcome to {self.name}!")
-            print("Please select a game:")
-            for idx, game in enumerate(self.games, start=1):
-                print(f"{idx}. {game.name}")
-            print("0. Exit")
+    def on_game_selected(self, game_name: Literal["Blackjack", "Poker", "Slot Machine", "Roulette"]):
+        selected_game = next((game for game in self.games if game.name == game_name), None)
+        if selected_game:
+            self.active_game_manager = selected_game.manager(
+                selected_game.game,
+                self.player,
+                selected_game.renderer,
+                self.player.buy_in(100),
+            )
+            self.active_game_manager.event_bus.subscribe(GenericEvent.GAME_END, self.end_game)
+            self.active_page.build_ui(game_to_render=self.active_game_manager.renderer)
+            self.active_game_manager.game.start()
 
-            choice = input("Enter your choice: ")
-            if choice == "0":
-                print("Thank you for visiting the casino! Goodbye!")
-                break
+    @ui.refreshable_method
+    async def menu(self):
+        self.active_page.build_ui()
+        # while True:
+        #     print(f"Welcome to {self.name}!")
+        #     print("Please select a game:")
+        #     for idx, game in enumerate(self.games, start=1):
+        #         print(f"{idx}. {game.name}")
+        #     print("0. Exit")
 
-            try:
-                selected_game = self.games[int(choice) - 1]
+        #     choice = input("Enter your choice: ")
+        #     if choice == "0":
+        #         print("Thank you for visiting the casino! Goodbye!")
+        #         break
 
-                # The actual instances of the games are created here, after the player has made their choice.
-                # This allows us to subscribe to game events before the game loop starts.
-                manager = selected_game.manager(
-                    selected_game.game,
-                    self.player,
-                    selected_game.renderer,
-                    self.player.buy_in(100),
-                )  # Example buy-in amount
+        #     try:
+        #         selected_game = self.games[int(choice) - 1]
 
-                manager.event_bus.subscribe(GenericEvent.GAME_END, self.end_game)
+        #         # The actual instances of the games are created here, after the player has made their choice.
+        #         # This allows us to subscribe to game events before the game loop starts.
+        #         manager = selected_game.manager(
+        #             selected_game.game,
+        #             self.player,
+        #             selected_game.renderer,
+        #             self.player.buy_in(100),
+        #         )  # Example buy-in amount
 
-                # Run game setup code before accepting player input
-                manager.game.start()
+        #         manager.event_bus.subscribe(GenericEvent.GAME_END, self.end_game)
 
-                self.game_active = True
-                while self.game_active:
-                    if manager.player.is_my_turn:
-                        choice = input("\nSelect an option: ")
+        #         # Run game setup code before accepting player input
+        #         manager.game.start()
 
-                        try:
-                            choice = int(choice) - 1
-                            command = manager.command_manager.get_commands()[choice]
+        #         self.game_active = True
+        #         while self.game_active:
+        #             if manager.player.is_my_turn:
+        #                 choice = input("\nSelect an option: ")
 
-                            if command.parameters:
-                                for param in command.parameters:
-                                    user_input = input(param.prompt_text)
-                                    param.set_value(user_input)
+        #                 try:
+        #                     choice = int(choice) - 1
+        #                     command = manager.command_manager.get_commands()[choice]
 
-                            if command:
-                                manager.command_manager.execute_command(command)
-                        except (IndexError, ValueError) as e:
-                            print(e)
-                            print(
-                                "Invalid input. Please enter a number corresponding to the available options."
-                            )
-            except (IndexError, ValueError):
-                print("Invalid choice. Please try again.")
+        #                     if command.parameters:
+        #                         for param in command.parameters:
+        #                             user_input = input(param.prompt_text)
+        #                             param.set_value(user_input)
+
+        #                     if command:
+        #                         manager.command_manager.execute_command(command)
+        #                 except (IndexError, ValueError) as e:
+        #                     print(e)
+        #                     print(
+        #                         "Invalid input. Please enter a number corresponding to the available options."
+        #                     )
+        #     except (IndexError, ValueError):
+        #         print("Invalid choice. Please try again.")
 
     def end_game(self, payout: float):
         self.game_active = False

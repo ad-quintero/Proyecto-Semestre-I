@@ -1,27 +1,30 @@
 from casino.casino import Casino
-from casino.player import PlayerController
+# from casino.player import PlayerController
 import os
 
-import flet as ft
-from ui.models.cards import CardControl
-from utils.cards import Card, CardView, Rank, Suit
-from pathlib import Path
+from nicegui import ui as gui
+import ui.routes
+from asyncio import run
+
+# from utils.cards import Card, CardView, Rank, Suit
+# from casino.games.blackjack.renderer import BlackjackRenderer
+# from casino.renderer import CasinoRenderer
 
 
+# def main():
+#     casino = Casino("Python Casino")
+#     casino.menu()
 
-def main():
+async def main_ui():
     casino = Casino("Python Casino")
-    casino.menu()
+    await casino.menu()
 
-def ui(page: ft.Page):
-    card = Card(suit=Suit.SPADES, rank=Rank.ACE)
+@gui.page("/")
+async def main():
+    await main_ui()
 
-    page.title = "Digital Casino"
-    page.add(CardControl(CardView.from_card(card)))
-
-
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     if os.getenv("UI"):
-        ft.run(ui)
-    else:
-        main()
+        gui.run()
+    # else:
+    #     main()

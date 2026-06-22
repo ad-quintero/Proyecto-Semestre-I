@@ -1,12 +1,16 @@
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from uuid import UUID
 
-from utils.commands.command import CommandSchema
+from utils.commands.command import CommandSchema, CommandParameter
 from utils.event_listener import EventBus
 
-from . import BlackjackPhase
+from . import BlackjackPhase, BlackJackCommandRequest
 from casino.games import Game
-from casino.player import PlayerBuyIn, PlayerController, PlayerView
+from casino.player import PlayerAccount, PlayerBuyIn, PlayerController, PlayerView
+
+if TYPE_CHECKING:
+    from casino.games.blackjack.renderer import BlackjackRenderer
+
 from utils.cards import CardView, Deck, Card, Rank
 from dataclasses import dataclass, field
 from casino.games.game_manager import GameManager
@@ -14,6 +18,7 @@ from .commands import HitCommand, StandCommand
 from casino.games.generic_events import GenericEvent
 from . import BlackjackEvent
 from casino.games import Snapshot
+from .player_controller import BlackjackPlayerController
 
 from . import commands
 
@@ -24,7 +29,8 @@ class BlackjackSnapshot(Snapshot):
     A snapshot of the current state of the Blackjack game, used for rendering and game logic.
     It includes information about the player's hand, the dealer's hand, the current bet, and the game phase.
     """
-
+    active_player: BlackjackPlayerView
+    """The currently active player in the game (either the player or the dealer). This can be used to determine whose turn it is and how to render the game state accordingly."""
     player_cards: list[CardView]
     """A list of CardView objects representing the player's current hand of cards. This can be used to display the player's hand in the UI."""
     dealer_cards: list[CardView]
@@ -36,7 +42,7 @@ class BlackjackSnapshot(Snapshot):
     The current phase of the game (e.g., WAITING_FOR_BET, PLAYER_TURN, DEALER_TURN, ROUND_END). 
     This can be used to determine which actions are available to the player and how to render the game state.
     """
-    available_commands: set[CommandSchema] = field(default_factory=set)
+    available_commands: dict[BlackJackCommandRequest, CommandSchema] = field(default_factory=dict)
     """A set of CommandSchema objects representing the commands available to the player in the current game state."""
     payout: float = None
     """The amount won or lost (positive for win, negative for loss, zero for tie)"""
@@ -103,6 +109,16 @@ class BlackjackPlayerView(PlayerView):
     cards: list[CardView]
     balance: int
 
+class BlackjackManager(GameManager):
+    """
+    Manages the state and flow of the Blackjack game, including handling player actions and game logic.
+    This class is responsible for processing commands from the player, updating the game state, and emitting events for rendering and interaction.
+    """
+
+    def __init__(self, game: Blackjack, player: PlayerAccount, renderer: BlackjackRenderer, player_buyin: PlayerBuyIn):
+        super().__init__(game, player, renderer, player_buyin)
+
+        self.player_controller = BlackjackPlayerController(self.event_bus, self.command_manager, player.id)
 
 class Blackjack(Game):
     """
@@ -131,29 +147,56 @@ class Blackjack(Game):
         self.bet = buyin.amount
         self.game_phase = BlackjackPhase.PLAYER_TURN
 
+        self.bet: int
+
     @property
     def active_player(self) -> Optional[BlackJackPlayer]:
         """
-        Returns the currently active player. During the player's turn, it returns the player object.
-        During the dealer's turn, it returns None since the dealer is not a player in the traditional sense.
+        Returns the currently active player.
         """
         return self.player
     
-
     def start(self):
+        self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
+        self.change_phase(BlackjackPhase.PLAYER_TURN, self.get_snapshot())
+
+
+    def place_bet(self, amount: int):
+        """Handles the player's bet placement, ensuring it is valid and updating the game state accordingly."""
+        if amount <= 0:
+            raise ValueError("Bet amount must be greater than zero.")
+        
+        if amount > self.player.balance:
+            raise ValueError("Bet amount cannot exceed player's current balance.")
+
+        self.bet = amount
+        self.player.balance -= amount
+
+        self.event_bus.notify(BlackjackEvent.PLACE_BET, self.get_snapshot())
+        self.event_bus.notify(GenericEvent.PHASE_CHANGE, (BlackjackPhase.PLAYER_TURN, self.get_snapshot()))
+
+    def remove_bet(self, amount: int):
+        """Handles the player's bet removal, allowing them to adjust their bet before the round starts."""
+        if amount <= 0:
+            raise ValueError("Amount to remove must be greater than zero.")
+        
+        if amount > self.bet:
+            raise ValueError("Amount to remove cannot exceed the current bet.")
+
+        self.bet -= amount
+        self.player.balance += amount
+
+        self.event_bus.notify(BlackjackEvent.REMOVE_BET, self.get_snapshot())
+        self.event_bus.notify(GenericEvent.PHASE_CHANGE, (BlackjackPhase.PLAYER_TURN, self.get_snapshot()))
+
+    def start_round(self):
         # Give initial cards to player and dealer
         for _ in range(2):
             self.change_phase(BlackjackPhase.PLAYER_TURN, self.get_snapshot())
             self.hit(self.player)
-            self.event_bus.notify(
-            BlackjackEvent.PLAYER_HIT, self.get_snapshot()
-            )
 
             self.change_phase(BlackjackPhase.DEALER_TURN, self.get_snapshot())
             self.hit(self.dealer)
-            self.event_bus.notify(
-                BlackjackEvent.DEALER_HIT, self.get_snapshot()
-            )
 
         self.event_bus.notify(
             GenericEvent.TURN_START, self.player.to_view(cards_visible=True)
@@ -228,11 +271,17 @@ class Blackjack(Game):
         self.event_bus.notify(event, final_snapshot)
         self.event_bus.notify(GenericEvent.GAME_END, payout)
 
-    def get_available_commands(self) -> list[CommandSchema]:
-        return [
-            CommandSchema("Hit", commands.HitCommand),
-            CommandSchema("Stand", commands.StandCommand),
-        ]
+    def get_available_commands(self) -> dict[BlackJackCommandRequest, CommandSchema]:
+        comms = {
+            BlackJackCommandRequest.PLACE_BET: CommandSchema("Place Bet", commands.PlaceBetCommand, parameters=[CommandParameter(name="amount", prompt_text="Enter bet amount:", parser=int)]) if self.game_phase == BlackjackPhase.PLAYER_TURN and not self.player.cards else None,
+            BlackJackCommandRequest.REMOVE_BET: CommandSchema("Remove Bet", commands.RemoveBetCommand, parameters=[CommandParameter(name="amount", prompt_text="Enter amount to remove:", parser=int)]) if self.game_phase == BlackjackPhase.PLAYER_TURN and not self.player.cards else None,
+            BlackJackCommandRequest.START_ROUND: CommandSchema("Start Round", commands.StartRoundCommand) if self.bet > 0 and self.player.cards else None,
+            BlackJackCommandRequest.HIT: CommandSchema("Hit", commands.HitCommand) if self.game_phase == BlackjackPhase.PLAYER_TURN and self.player.cards else None,
+            BlackJackCommandRequest.STAND: CommandSchema("Stand", commands.StandCommand) if self.game_phase == BlackjackPhase.PLAYER_TURN and self.player.cards else None,
+        }
+        return {
+            cmd: schema for cmd, schema in comms.items() if schema
+        }
 
     def get_snapshot(
         self, show_dealer_cards: bool = False, **kwargs

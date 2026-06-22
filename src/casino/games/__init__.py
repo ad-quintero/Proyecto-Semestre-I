@@ -48,8 +48,11 @@ class Game:
     def show_rules(self):
         raise NotImplementedError("Subclasses must implement the show_rules() method.")
 
-    def get_available_commands(self) -> list[CommandSchema]:
-        """Returns a set of CommandSchema objects representing the commands available in the current game state."""
+    def get_available_commands(self) -> dict[Enum, CommandSchema]:
+        """
+        Returns a dict of CommandSchema objects representing the commands available in the current game state with
+        their corresponding enum values that trigger the command as keys.
+        """
         return []
 
 

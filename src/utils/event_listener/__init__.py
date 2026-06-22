@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from enum import Enum
 from typing import List, Optional, Tuple, Any
+import asyncio
+import inspect
 
 
 class EventBus:
@@ -32,6 +34,13 @@ class EventBus:
         for registered_event, callback in list(self.listeners):
             if registered_event is None or registered_event == event:
                 try:
-                    callback(event, data)
+                    if inspect.iscoroutinefunction(callback):
+                        # Safely schedule the async function on the active web server loop
+                        asyncio.create_task(callback(event, data))
+                    else:
+                        callback(event, data)
                 except TypeError:
-                    callback(data)
+                    if inspect.iscoroutinefunction(callback):
+                        asyncio.create_task(callback(data))
+                    else:
+                        callback(data)

@@ -16,3 +16,7 @@ class Renderer(ABC):
     def __init__(self, event_bus: EventBus):
         """Initializes the renderer and subscribes to relevant game events."""
         self.event_bus = event_bus
+
+    def build_ui(self):
+        """Builds the initial UI components. This can be overridden by specific game renderers if needed."""
+        raise NotImplementedError("build_ui method must be implemented by the specific game renderer.")

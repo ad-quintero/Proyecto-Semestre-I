@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from uuid import UUID
+from utils.commands.command import CommandSchema
 from utils.commands.command_manager import CommandManager
 from utils.event_listener import EventBus
 from typing import Optional
@@ -81,11 +82,10 @@ class PlayerController:
     def on_turn(self, player_view: PlayerView):
         self.is_my_turn = self.player_id == player_view.id
 
-    def handle_input(self, command_idx: int):
+    def execute_command(self, command_schema: CommandSchema):
         """Handles user input by looking up the corresponding command and executing it."""
         if self.is_my_turn:
-            command = self.command_manager.get_command_by_index(command_idx)
-            self.command_manager.execute_command(command)
+            self.command_manager.execute_command(command_schema)
 
 
 class HumanController(PlayerController):
