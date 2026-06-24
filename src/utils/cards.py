@@ -70,9 +70,7 @@ class CardView:
 
     @classmethod
     def from_card(cls, card: Card, face_up=True):
-        if face_up:
-            return cls(rank=card.rank, suit=card.suit, is_face_up=True)
-        return cls(is_face_up=False)  # Rank and Suit remain hidden (None)
+        return cls(rank=card.rank, suit=card.suit, is_face_up=face_up)
 
     def __str__(self):
         if self.is_face_up:

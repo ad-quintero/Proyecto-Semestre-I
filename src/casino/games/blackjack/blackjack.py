@@ -158,8 +158,20 @@ class Blackjack(Game):
     
     def start(self):
         self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
+        self.game_phase = BlackjackPhase.PLAYER_TURN
         self.change_phase(BlackjackPhase.PLAYER_TURN, self.get_snapshot())
 
+    def reset_game(self):
+        """
+        Resets the game state for a new round, clearing hands and resetting the deck.
+        """
+        self.deck = Deck(True)
+        self.dealer.cards.clear()
+        self.player.cards.clear()
+        self.bet = 0
+
+        self.event_bus.notify(BlackjackEvent.NEW_ROUND)
+        self.start()
 
     def place_bet(self, amount: int):
         """Handles the player's bet placement, ensuring it is valid and updating the game state accordingly."""
@@ -198,14 +210,14 @@ class Blackjack(Game):
             self.change_phase(BlackjackPhase.DEALER_TURN, self.get_snapshot())
             self.hit(self.dealer)
 
+        # If the dealer has a blackjack, the round ends immediately
+        if self.dealer.is_blackjack:
+            self.end_round()
+
         self.event_bus.notify(
             GenericEvent.TURN_START, self.player.to_view(cards_visible=True)
         )
         self.change_phase(BlackjackPhase.PLAYER_TURN, self.get_snapshot())
-
-        # If the dealer has a blackjack, the round ends immediately
-        if self.dealer.is_blackjack:
-            self.end_round()
 
     def hit(self, player: BlackJackPlayer):
         """Deals a new card to the specified player."""
@@ -241,6 +253,7 @@ class Blackjack(Game):
         self.end_round()
 
     def end_round(self):
+        self.game_phase = BlackjackPhase.ROUND_END
         self.change_phase(BlackjackPhase.ROUND_END, self.get_snapshot())
 
         payout = 0
@@ -266,19 +279,27 @@ class Blackjack(Game):
             event = BlackjackEvent.TIE
             payout = self.bet
 
+        self.player.balance += payout if payout > 0 else 0
+
         final_snapshot = self.get_snapshot(True, payout=payout)
 
         self.event_bus.notify(event, final_snapshot)
-        self.event_bus.notify(GenericEvent.GAME_END, payout)
+
+    def end_game(self):
+        """Ends the game and notifies the event bus."""
+        self.event_bus.notify(GenericEvent.GAME_END, self.player.balance)
 
     def get_available_commands(self) -> dict[BlackJackCommandRequest, CommandSchema]:
         comms = {
             BlackJackCommandRequest.PLACE_BET: CommandSchema("Place Bet", commands.PlaceBetCommand, parameters=[CommandParameter(name="amount", prompt_text="Enter bet amount:", parser=int)]) if self.game_phase == BlackjackPhase.PLAYER_TURN and not self.player.cards else None,
             BlackJackCommandRequest.REMOVE_BET: CommandSchema("Remove Bet", commands.RemoveBetCommand, parameters=[CommandParameter(name="amount", prompt_text="Enter amount to remove:", parser=int)]) if self.game_phase == BlackjackPhase.PLAYER_TURN and not self.player.cards else None,
             BlackJackCommandRequest.START_ROUND: CommandSchema("Start Round", commands.StartRoundCommand) if self.bet > 0 and not self.player.cards else None,
-            BlackJackCommandRequest.HIT: CommandSchema("Hit", commands.HitCommand) if self.game_phase == BlackjackPhase.PLAYER_TURN and self.player.cards else None,
-            BlackJackCommandRequest.STAND: CommandSchema("Stand", commands.StandCommand) if self.game_phase == BlackjackPhase.PLAYER_TURN and self.player.cards else None,
+            BlackJackCommandRequest.HIT: CommandSchema("Hit", commands.HitCommand) if self.player.cards else None,
+            BlackJackCommandRequest.STAND: CommandSchema("Stand", commands.StandCommand) if self.player.cards else None,
+            BlackJackCommandRequest.RESET: CommandSchema("Reset Game", commands.ResetCommand) if self.game_phase == BlackjackPhase.ROUND_END else None,
+            BlackJackCommandRequest.END: CommandSchema("End Game", commands.EndCommand) if self.game_phase == BlackjackPhase.ROUND_END else None,
         }
+
         return {
             cmd: schema for cmd, schema in comms.items() if schema
         }

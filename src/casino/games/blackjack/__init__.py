@@ -24,6 +24,8 @@ class BlackjackEvent(Enum):
     """Event triggered when the dealer wins the round."""
     TIE = auto()
     """Event triggered when the round ends in a tie."""
+    NEW_ROUND = auto()
+    """Event triggered when a new round starts, resetting the game state for the next round."""
 
 class BlackJackCommandRequest(Enum):
     PLACE_BET = auto()
@@ -36,6 +38,10 @@ class BlackJackCommandRequest(Enum):
     """Command to request the player to hit (take another card)."""
     STAND = auto()
     """Command to request the player to stand (keep their current hand)."""
+    RESET = auto()
+    """Command to reset the game state for a new round."""
+    END = auto()
+    """Command to end the game."""
 
 class BlackjackPhase(Enum):
     """Enum to represent the different phases of a Blackjack game, which can be used to manage game flow and logic."""

@@ -19,3 +19,6 @@ class BlackjackPlayerController(PlayerController):
         self.event_bus.subscribe(BlackJackCommandRequest.STAND, lambda command_schema: self.execute_command(command_schema))
         self.event_bus.subscribe(BlackJackCommandRequest.PLACE_BET, lambda command_schema: self.execute_command(command_schema))
         self.event_bus.subscribe(BlackJackCommandRequest.REMOVE_BET, lambda command_schema: self.execute_command(command_schema))
+        self.event_bus.subscribe(BlackJackCommandRequest.START_ROUND, lambda command_schema: self.execute_command(command_schema))
+        self.event_bus.subscribe(BlackJackCommandRequest.RESET, lambda command_schema: self.execute_command(command_schema))
+        self.event_bus.subscribe(BlackJackCommandRequest.END, lambda command_schema: self.execute_command(command_schema))

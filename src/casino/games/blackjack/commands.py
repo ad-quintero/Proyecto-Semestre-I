@@ -52,7 +52,6 @@ class HitCommand(Command):
         active_player = self.game.player if self.game.game_phase == BlackjackPhase.PLAYER_TURN else self.game.dealer
         self.game.hit(active_player)
 
-
 class StandCommand(Command):
     """Command to handle the player's decision to stand (keep their current hand)."""
 
@@ -60,3 +59,19 @@ class StandCommand(Command):
 
     def execute(self):
         self.game.dealer_play()
+
+class ResetCommand(Command):
+    """Command to reset the game state for a new round."""
+
+    game: Blackjack
+
+    def execute(self):
+        self.game.reset_game()
+
+class EndCommand(Command):
+    """Command to end the current round and reset the game state for a new round."""
+
+    game: Blackjack
+
+    def execute(self):
+        self.game.end_game()

@@ -149,3 +149,6 @@ class Casino:
         # and we don't want to double charge the player.
         if payout > 0:
             self.player.deposit(payout)
+        
+        self.active_game_manager = None
+        self.active_page.build_ui()  # Reset to the main menu after the game ends

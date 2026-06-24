@@ -82,24 +82,33 @@ class PlaceBetData:
     can_place_bet: bool
 
 class BlackjackRenderer(Renderer):
+    cards: list[tuple[ui.element, CardUI]]
+    placed_chips: list[ui.element]
+
     def __init__(self, event_bus: EventBus):
         super().__init__(event_bus)
 
         self.event_bus.subscribe(GenericEvent.PHASE_CHANGE, self.turn_start)
         self.event_bus.subscribe(BlackjackEvent.PLAYER_HIT, self.player_hit)
         self.event_bus.subscribe(BlackjackEvent.DEALER_HIT, self.dealer_hit)
-        self.event_bus.subscribe(BlackjackEvent.PLACE_BET, self.change_bet)
-        self.event_bus.subscribe(BlackjackEvent.REMOVE_BET, self.change_bet)
-        # self.event_bus.subscribe(BlackjackEvent.DEALER_WINS, self.dealer_wins)
-        # self.event_bus.subscribe(BlackjackEvent.PLAYER_WINS, self.player_wins)
-        # self.event_bus.subscribe(GenericEvent.PHASE_CHANGE, self.handle_phase_change)
+        self.event_bus.subscribe(BlackjackEvent.DEALER_WINS, self.dealer_wins)
+        self.event_bus.subscribe(BlackjackEvent.PLAYER_WINS, self.player_wins)
+        self.event_bus.subscribe(BlackjackEvent.TIE, self.tie)
+        self.event_bus.subscribe(BlackjackEvent.NEW_ROUND, self.reset_ui)
 
         self.container: ui.element = None
         self.game_area: ui.element = None
+        self.command_area: ui.element = None
 
         self.can_place_bets = False
         self.place_bet_cmd: CommandSchema = None
         self.remove_bet_cmd: CommandSchema = None
+        self.restart_round_cmd: CommandSchema = None
+        self.end_game_cmd: CommandSchema = None
+
+        self.cards = []
+        self.placed_chips = []
+        self.command_buttons: list[ui.element] = []
 
         self.chips = [PlaceBetData(chip_value=chip.value, can_place_bet=False) for chip in ChipValue]
         self.active_bets: dict[int, int] = {} # Maps chip value to quantity of that chip currently bet
@@ -110,10 +119,12 @@ class BlackjackRenderer(Renderer):
         return f"Current bet: ${total}" if total > 0 else ""
 
     def build_ui(self):
-        self.container = ui.element('div').classes('relative size-full flex items-stretch justify-between game-container')
+        if self.container is None:
+            self.container = ui.element('div').classes('relative size-full flex items-stretch justify-between game-container')
 
         with self.container:
-            self.game_area = ui.element('div').classes('relative grow bg-green-700 rounded-lg shadow-lg')
+            if not self.game_area:
+                self.game_area = ui.element('div').classes('relative grow bg-green-700 rounded-lg shadow-lg')
             with self.game_area:
                 with ui.element("div").classes(f"{blackjack_table_positions["deck"]} pointer-events-none w-fit"):
                     CardUI(CardView(is_face_up=False))
@@ -148,6 +159,8 @@ class BlackjackRenderer(Renderer):
                             shared_base = "absolute transition-all duration-300 ease-in-out"
 
                             btn_remove = ui.element("button").classes(f"{shared_base} {blackjack_table_positions['chips']}")
+                            self.placed_chips.append(btn_remove)
+
                             # Apply the dynamic Y transform via inline styles
                             btn_remove.style(f"transform: translateY(-{idx*110}%);")
 
@@ -202,10 +215,38 @@ class BlackjackRenderer(Renderer):
                     with btn:
                         ChipUI(ChipValue(chip.chip_value))
             
-            self.command_area = ui.column(align_items="center").classes("basis-1/4 flex flex-col items-center justify-center bg-red-300")
-    
+            if not self.command_area:
+                self.command_area = ui.column(align_items="center").classes("basis-1/4 flex flex-col items-center justify-center bg-red-300")
+
+    def reset_ui(self, _):
+        self.active_bets.clear()
+        
+        for element, _ in self.cards:
+            element.delete()
+        self.cards.clear()
+
+        for chip in self.placed_chips:
+            chip.delete()
+        self.placed_chips.clear()
+        
+        self.place_bet_cmd = None
+        self.remove_bet_cmd = None
+        self.can_place_bets = True
+        
+        # Clear the internal elements cleanly without deleting the structural layout containers
+        if self.game_area:
+            self.game_area.clear()
+        if self.command_area:
+            self.command_area.clear()
+            
+        # Rebuild the table structural children
+        self.build_ui()
+
     def turn_start(self, data: tuple[BlackjackPhase, BlackjackSnapshot]):
         new_phase, snapshot = data
+
+        self.can_place_bets = not snapshot.player_cards and not snapshot.dealer_cards
+
         if new_phase == BlackjackPhase.PLAYER_TURN:
             with self.command_area:
                     self.command_area.clear()
@@ -219,19 +260,22 @@ class BlackjackRenderer(Renderer):
                     enums = snapshot.available_commands.keys()
                     self.can_place_bets = BlackJackCommandRequest.PLACE_BET in enums or BlackJackCommandRequest.REMOVE_BET in enums
 
+                    self.command_buttons.clear()
                     for enum, cmd in snapshot.available_commands.items():
-                        if enum not in (BlackJackCommandRequest.PLACE_BET, BlackJackCommandRequest.REMOVE_BET):
-                            ui.button(cmd.display_name, on_click=lambda _, cmd=cmd: self.event_bus.notify(enum, cmd))
+                        if enum not in (BlackJackCommandRequest.PLACE_BET, BlackJackCommandRequest.REMOVE_BET, BlackJackCommandRequest.RESET, BlackJackCommandRequest.END):
+                            btn = ui.button(cmd.display_name, on_click=lambda _, cmd=cmd: self.event_bus.notify(enum, cmd))
+                            self.command_buttons.append(btn)
                         else:
                             self.place_bet_cmd = cmd if enum == BlackJackCommandRequest.PLACE_BET else self.place_bet_cmd
                             self.remove_bet_cmd = cmd if enum == BlackJackCommandRequest.REMOVE_BET else self.remove_bet_cmd
 
                             for chip in self.chips:
                                 chip.can_place_bet = snapshot.active_player.balance >= chip.chip_value and self.can_place_bets
-
-    def change_bet(self, _snapshot: BlackjackSnapshot): 
-        pass       
-        # self.pot.set_text(f"Current Bet: ${sum(value * key for key, value in self.active_bets.items())}")
+        elif new_phase == BlackjackPhase.ROUND_END:
+            for btn in self.command_buttons:
+                btn.delete()
+            self.restart_round_cmd = snapshot.available_commands.get(BlackJackCommandRequest.RESET)
+            self.end_game_cmd = snapshot.available_commands.get(BlackJackCommandRequest.END)
 
     async def player_hit(self, snapshot: BlackjackSnapshot):
         # Keep the master container open so NiceGUI knows where to position these root containers
@@ -249,6 +293,8 @@ class BlackjackRenderer(Renderer):
             with flying_card:
                 card.is_face_up = False  # Start face down for the animation
                 dealt_card = CardUI(card)
+            
+                self.cards.append((flying_card, dealt_card))
             
         await asyncio.sleep(0.05)
             
@@ -280,6 +326,7 @@ class BlackjackRenderer(Renderer):
             with flying_card:
                 card.is_face_up = False  # Start face down for the animation
                 dealt_card = CardUI(card)
+                self.cards.append((flying_card, dealt_card))
             
         await asyncio.sleep(0.05)
             
@@ -294,4 +341,53 @@ class BlackjackRenderer(Renderer):
         if is_face_up:
             await dealt_card.flip()
 
-# TODO Animation to draw chips to the table when placing bets, and remove them when removing bets. This will likely involve creating temporary flying chip elements similar to the flying cards in the hit animations, and animating them from the chip area to the player's betting area (and vice versa).
+    async def player_wins(self, snapshot: BlackjackSnapshot):
+        await asyncio.sleep(1)  # Wait for any ongoing animations to finish
+        await self._reveal_all_cards()
+        await asyncio.sleep(2)
+
+        self._show_end_modal(f"You win! Payout: (${abs(snapshot.payout)}).")
+
+    async def dealer_wins(self, snapshot: BlackjackSnapshot):
+        await asyncio.sleep(1)  # Wait for any ongoing animations to finish
+        await self._reveal_all_cards()
+        await asyncio.sleep(2)
+
+        self._show_end_modal(f"Dealer Wins. You lose your bet (${abs(snapshot.payout)}).")
+
+    async def tie(self, snapshot: BlackjackSnapshot):
+        await asyncio.sleep(1)  # Wait for any ongoing animations to finish
+        await self._reveal_all_cards()
+        await asyncio.sleep(2)
+
+        self._show_end_modal(f"Tie! No payout. Your bet (${abs(snapshot.payout)}) is returned.")
+
+    async def _reveal_all_cards(self):
+        for _, card in self.cards:
+            if not card.card.is_face_up:
+                await card.flip()
+
+    def _show_end_modal(self, msg: str):
+        with self.container:
+            dialog = ui.dialog(value=True).classes("w-1/3 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2")
+
+        async def reset_game():
+            if self.restart_round_cmd:
+                dialog.close()
+                await asyncio.sleep(0.1)  # Ensure the dialog is closed before resetting the UI
+
+                self.event_bus.notify(BlackJackCommandRequest.RESET, self.restart_round_cmd)
+
+        def end_game():
+            if self.end_game_cmd:
+                self.event_bus.notify(BlackJackCommandRequest.END, self.end_game_cmd)
+            dialog.close()
+
+        with dialog:
+            ui.label(msg).classes("text-lg font-bold mb-4")
+
+            with ui.row().classes("justify-center gap-4"):
+                ui.button("Close", on_click=end_game)
+                ui.button("New Game", on_click=reset_game)
+
+
