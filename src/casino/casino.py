@@ -16,7 +16,7 @@ from casino.games.slot_machine.slot_machine import (
     SlotMachine,
     SlotMachineManager,
 )
-from casino.games.slot_machine.renderer import SlotMachineTerminalRenderer
+from casino.games.slot_machine.renderer import SlotMachineRenderer
 from casino.games.roulette.roulette import Roulette, RouletteManager
 from casino.games.roulette.renderer import RouletteTerminalRenderer
 from casino.renderer import CasinoRenderer
@@ -60,7 +60,7 @@ class Casino:
                 name="Slot Machine",
                 game=SlotMachine,
                 manager=SlotMachineManager,
-                renderer=SlotMachineTerminalRenderer,
+                renderer=SlotMachineRenderer,
             ),
             CasinoGame(
                 name="Roulette",
@@ -80,7 +80,7 @@ class Casino:
                 selected_game.game,
                 self.player,
                 selected_game.renderer,
-                self.player.buy_in(100),
+                self.player.buy_in(self.player.balance),
             )
             self.active_game_manager.event_bus.subscribe(GenericEvent.GAME_END, self.end_game)
             self.active_page.build_ui(game_to_render=self.active_game_manager.renderer)

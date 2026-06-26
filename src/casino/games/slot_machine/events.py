@@ -17,3 +17,13 @@ class SlotMachineEvents(Enum):
     """A spin has started, and the reels are spinning."""
     SPIN_RESULT = auto()
     """The result of a spin has been determined, including the outcome and any winnings."""
+
+class SlotMachineCommandRequest(Enum):
+    """An enumeration of commands that can be requested by the player in the Slot Machine game."""
+
+    SPIN = auto()
+    """Request to spin the slot machine."""
+    CHANGE_BET = auto()
+    """Request to change the bet amount."""
+    END_GAME = auto()
+    """Request to end the game and exit the slot machine."""

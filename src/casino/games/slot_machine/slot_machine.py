@@ -3,10 +3,11 @@ from uuid import UUID
 
 from casino.games import Game
 from casino.games.game_manager import GameManager
-from casino.games.slot_machine.events import SlotMachineEvents
+from casino.games.slot_machine.events import SlotMachineCommandRequest, SlotMachineEvents
+from casino.games.slot_machine.player_controller import SlotMachinePlayerController
 from utils import renderer
 from utils.event_listener import EventBus
-from casino.player import PlayerBuyIn
+from casino.player import PlayerAccount, PlayerBuyIn
 from utils.commands.command import CommandSchema, CommandParameter
 from . import commands
 from casino.games import Snapshot
@@ -41,11 +42,12 @@ class SlotMachineManager(GameManager):
     def __init__(
         self,
         game: SlotMachine,
-        event_bus: EventBus,
+        player: PlayerAccount,
         renderer: renderer.Renderer,
         buyin: PlayerBuyIn,
     ):
-        super().__init__(game, event_bus, renderer, buyin)
+        super().__init__(game, player, renderer, buyin)
+        self.player_controller = SlotMachinePlayerController(self.event_bus, self.command_manager, buyin.player_id)
 
 
 @dataclass(frozen=True)
@@ -60,7 +62,7 @@ class SlotMachineSnapshot(Snapshot):
     """The current bet amount placed by the player. This can be used to display the bet in the UI and calculate payouts."""
     multiplier: float
     """The multiplier of the last spin."""
-    available_commands: list[CommandSchema]
+    available_commands: dict[SlotMachineCommandRequest, CommandSchema]
 
 
 class SlotMachine(Game):
@@ -103,20 +105,28 @@ class SlotMachine(Game):
         )
         self.event_bus.notify(SlotMachineEvents.PLAYER_CHOICE, self.get_snapshot())
 
-    def change_bet(self, new_bet: float):
-        self.bet = new_bet
-        self.event_bus.notify(SlotMachineEvents.BET_CHANGE, self.get_snapshot())
+    def change_bet(self, amount: float):
+        # Calculate what the new bet *would* be
+        proposed_bet = self.bet + amount
+    
+        # 🎯 RULE 1: The bet cannot drop below 0
+        # 🎯 RULE 2: The bet cannot exceed the player's current total cash
+        if 0 <= proposed_bet <= self.player.funds:
+            self.bet = proposed_bet
 
-        self.event_bus.notify(
-            GenericEvent.TURN_START,
-            self.player.to_view(),
-        )
-        self.event_bus.notify(SlotMachineEvents.PLAYER_CHOICE, self.get_snapshot())
+            self.event_bus.notify(SlotMachineEvents.BET_CHANGE, self.get_snapshot())
+
+            self.event_bus.notify(
+                GenericEvent.TURN_START,
+                self.player.to_view(),
+            )
+            self.event_bus.notify(SlotMachineEvents.PLAYER_CHOICE, self.get_snapshot())
+        else:
+            raise ValueError(f"Invalid bet change: {amount}. Proposed bet would be {proposed_bet}, but player funds are {self.player.funds}.")
 
     def spin(self):
-        self.event_bus.notify(SlotMachineEvents.SPIN_START, self.get_snapshot())
-
         self.player.funds -= self.bet
+        self.event_bus.notify(SlotMachineEvents.SPIN_START, self.get_snapshot())
 
         self.outcome = tuple(random.choices(
             population=list(self.odds.keys()), weights=list(self.odds.values()), k=3
@@ -129,18 +139,16 @@ class SlotMachine(Game):
 
         self.event_bus.notify(SlotMachineEvents.SPIN_RESULT, self.get_snapshot())
 
-        self.event_bus.notify(SlotMachineEvents.PLAYER_CHOICE, self.get_snapshot())
         self.event_bus.notify(
             GenericEvent.TURN_START,
             self.player.to_view(),
         )
+        self.event_bus.notify(SlotMachineEvents.PLAYER_CHOICE, self.get_snapshot())
 
     def end(self):
         self.event_bus.notify(GenericEvent.GAME_END, self.player.funds)
 
     def get_snapshot(self) -> SlotMachineSnapshot:
-        # For demonstration purposes, we'll return a static snapshot.
-        # In a real implementation, this would reflect the actual game state.
         return SlotMachineSnapshot(
             active_player=self.player.to_view(),
             reels=self.outcome,
@@ -149,10 +157,10 @@ class SlotMachine(Game):
             available_commands=self.get_available_commands()
         )
 
-    def get_available_commands(self):
-        comms = [
-                CommandSchema("Spin", commands.SpinCommand) if self.bet and self.player.funds > self.bet else None,
-                CommandSchema(
+    def get_available_commands(self) -> dict[SlotMachineCommandRequest, CommandSchema]:
+        comms = {
+                SlotMachineCommandRequest.SPIN: CommandSchema("Spin", commands.SpinCommand) if self.bet and self.player.funds > self.bet else None,
+                SlotMachineCommandRequest.CHANGE_BET: CommandSchema(
                     "Change Bet",
                     commands.ChangeBetCommand,
                     parameters=[
@@ -161,7 +169,7 @@ class SlotMachine(Game):
                         )
                     ],
                 ),
-                CommandSchema("End Game", commands.EndCommand)
-        ]
+                SlotMachineCommandRequest.END_GAME: CommandSchema("End Game", commands.EndCommand)
+        }
 
-        return [cmd for cmd in comms if cmd is not None]
+        return {cmd: schema for cmd, schema in comms.items() if schema is not None}
