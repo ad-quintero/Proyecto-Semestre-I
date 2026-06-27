@@ -4,7 +4,7 @@ from casino.games.blackjack.renderer import BlackjackRenderer, BlackjackTerminal
 from casino.player import PlayerAccount
 from casino.games.blackjack.blackjack import Blackjack, BlackjackManager
 from casino.games.poker.poker import Poker, PokerManager
-from casino.games.poker.renderer import PokerTerminalRenderer
+from casino.games.poker.renderer import PokerRenderer
 from casino.games.game_manager import GameManager
 from casino.games import Game
 from dataclasses import dataclass
@@ -54,7 +54,7 @@ class Casino:
                 renderer=BlackjackRenderer,
             ),
             CasinoGame(
-                name="Poker", game=Poker, manager=PokerManager, renderer=PokerTerminalRenderer
+                name="Poker", game=Poker, manager=PokerManager, renderer=PokerRenderer
             ),
             CasinoGame(
                 name="Slot Machine",

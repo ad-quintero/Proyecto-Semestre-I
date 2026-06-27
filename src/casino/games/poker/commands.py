@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .poker import Poker
 
-class PlaceBetCommand(Command):
+class ChangeBetCommand(Command):
     game: Poker
 
     def __init__(self, game: Poker, amount: float):
@@ -12,18 +12,7 @@ class PlaceBetCommand(Command):
         self.amount = amount
 
     def execute(self):
-        self.game.place_bet(self.amount)
-
-
-class RemoveBetCommand(Command):
-    game: Poker
-
-    def __init__(self, game: Poker, amount: float):
-        super().__init__(game)
-        self.amount = amount
-
-    def execute(self):
-        self.game.remove_bet(self.amount)
+        self.game.change_bet(self.amount)
 
 class StartRoundCommand(Command):
     game: Poker

@@ -14,7 +14,7 @@ class CardUI:
             Suit.SPADES: 'text-slate-800'
         }
 
-        self.card_container = ui.card().classes('w-16 h-24 flex items-center justify-center rounded-lg border hover:scale-115 transition-transform duration-200 select-none').on('click', self.flip)
+        self.card_container = ui.card().classes('w-16 h-24 flex items-center justify-center rounded-lg border hover:scale-115 transition-transform duration-200 select-none')
         self.flipping = False
 
         self.refresh()

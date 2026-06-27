@@ -28,6 +28,8 @@ from dataclasses import dataclass
 from utils.commands.command import CommandSchema, CommandParameter
 from casino.games.generic_events import GenericEvent
 from casino.player import PlayerView
+from casino.games.poker.events import PokerCommandRequest
+from casino.games.poker.player_controller import PokerPlayerController
 
 
 @dataclass
@@ -64,7 +66,7 @@ class PokerSnapshot(Snapshot):
     """The multiplier of the bet earnings. Included only on hand end."""
     final_hand: Optional[tuple[HandRank, list[CardStateView]]]
     """The rank and tie-breaker vector of the player's final hand, determined at the end"""
-    available_commands: tuple[CommandSchema]
+    available_commands: dict[PokerCommandRequest, CommandSchema]
     """The list of available commands for the current active player, which can be used for rendering the UI and for AI decision-making."""
 
 
@@ -124,7 +126,7 @@ class PokerManager(GameManager):
 
         self.command_manager = CommandManager(self.game)
 
-        self.player = PlayerController(self.event_bus, self.command_manager, player.id)
+        self.player = PokerPlayerController(self.event_bus, self.command_manager, player.id)
 
 @dataclass
 class CardState:
@@ -185,6 +187,8 @@ class Poker(Game):
         self.change_phase(PokerPhase.PLAYER_TURN, self.get_snapshot())
         self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
         self.event_bus.notify(GenericEvent.GAME_START, self.get_snapshot())
+        self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
+
 
     def start_round(self):
         self.deal_cards()
@@ -192,35 +196,29 @@ class Poker(Game):
     def end(self):
         pass
 
-    def place_bet(self, bet: float):
-        if self.player.funds < bet:
-            raise ValueError("Cant bet more than what you have")
-
-        if bet <= 0:
-            raise ValueError("Must place a minimum bet of 1$")
-        
-        self.player.funds -= bet
-        self.bet += bet
-
-        self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
-        self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
+    def change_bet(self, amount: float):
+        # Calculate what the new bet *would* be
+        proposed_bet = self.bet + amount
     
-    def remove_bet(self, amount: float):
-        if amount < 0:
-            raise ValueError("Cant remove a negative amount.")
-        
-        if amount > self.bet:
-            raise ValueError("Cant remove more bet than placed.")
-        
-        self.player.funds += amount
-        self.bet = min(0, self.bet - amount)
-    
-        self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
-        self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
+        # 🎯 RULE 1: The bet cannot drop below 0
+        # 🎯 RULE 2: The bet cannot exceed the player's current total cash
+        if 0 <= proposed_bet <= self.player.funds:
+            self.bet = proposed_bet
+
+            self.event_bus.notify(PokerEvent.BET_CHANGE, self.get_snapshot())
+
+            self.event_bus.notify(
+                GenericEvent.TURN_START,
+                self.player.to_view(),
+            )
+            self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
+        else:
+            raise ValueError(f"Invalid bet change: {amount}. Proposed bet would be {proposed_bet}, but player funds are {self.player.funds}.")
 
     def deal_cards(self):
         """Deals the starting 5 hands."""
 
+        self.player.funds -= self.bet
         self.change_phase(PokerPhase.DEALING_CARDS)
 
         self.community_cards = [CardState(card, False) for card in self.deck.deal(5)]
@@ -266,15 +264,16 @@ class Poker(Game):
         self.player.funds += self.bet * multiplier
         self.payout_multiplier = multiplier
 
+        self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
         self.event_bus.notify(PokerEvent.HAND_OVER, self.get_snapshot())
 
-        self.event_bus.notify(PokerEvent.TURN, self.get_snapshot())
         self.event_bus.notify(
             GenericEvent.TURN_START, self.player.to_view(cards_visible=True)
         )
 
     def finish_hand(self, reset: bool):
         if reset:
+            self.event_bus.notify(PokerEvent.HAND_RESET, self.get_snapshot())
             self.start()
         else:
             self.event_bus.notify(GenericEvent.GAME_END, self.player.funds)
@@ -390,45 +389,34 @@ class Poker(Game):
 
         return best_score
 
-    def get_available_commands(self) -> tuple[CommandSchema]:
+    def get_available_commands(self) -> dict[PokerCommandRequest, CommandSchema]:
         no_comm_cards = len(self.community_cards) == 0
 
-        comms = [
-            CommandSchema(
-                    display_name="New Hand",
-                    command_class=commands.NewHandCommand,
-                ) if self.game_phase == PokerPhase.SHOWDOWN else None,
-            CommandSchema(
-                    display_name="End Game",
+        comms = {
+            PokerCommandRequest.NEW_HAND: CommandSchema(
+                display_name="New Hand",
+                command_class=commands.NewHandCommand,
+            ) if self.game_phase == PokerPhase.SHOWDOWN else None,
+            PokerCommandRequest.END_GAME: CommandSchema(
+                display_name="End Game",
                     command_class=commands.EndHandCommand,
-                ) if self.game_phase == PokerPhase.SHOWDOWN else None,
-            CommandSchema(
+                ) if no_comm_cards or self.game_phase == PokerPhase.SHOWDOWN else None,
+            PokerCommandRequest.START_ROUND: CommandSchema(
                     display_name="Start Round",
                     command_class=commands.StartRoundCommand,
-            ) if self.game_phase == PokerPhase.PLAYER_TURN and len(self.community_cards) == 0 and self.bet > 0 else None,
-            CommandSchema(
-                    display_name="Place Bet",
-                    command_class=commands.PlaceBetCommand,
+            ) if len(self.community_cards) == 0 and self.bet > 0 else None,
+            PokerCommandRequest.CHANGE_BET: CommandSchema(
+                    display_name="Change Bet",
+                    command_class=commands.ChangeBetCommand,
                     parameters=[
                         CommandParameter(
                             name="amount",
-                            prompt_text="How much would you like to bet? ",
+                            prompt_text="How much would you like to change your bet by? ",
                             parser=float,
                         )
                     ],
-                ) if self.game_phase == PokerPhase.PLAYER_TURN and no_comm_cards else None,
-            CommandSchema(
-                    display_name="Remove Bet",
-                    command_class=commands.RemoveBetCommand,
-                    parameters=[
-                        CommandParameter(
-                            name="amount",
-                            prompt_text="How much would you like to remove from your bet? ",
-                            parser=float,
-                        )
-                    ],
-                ) if self.game_phase == PokerPhase.PLAYER_TURN and self.bet > 0 and no_comm_cards else None,
-            CommandSchema(
+                ) if no_comm_cards else None,
+            PokerCommandRequest.HOLD_CARD: CommandSchema(
                     display_name="Hold Card",
                     command_class=commands.HoldCardCommand,
                     parameters=[
@@ -438,14 +426,14 @@ class Poker(Game):
                             parser=int,
                         )
                     ],
-                ) if self.game_phase == PokerPhase.PLAYER_TURN and not no_comm_cards else None, # Using the len of community cards to determine if cards have been dealt, since the player should only be able to hold/discard after being dealt cards
-            CommandSchema(
+                ) if not no_comm_cards else None, # Using the len of community cards to determine if cards have been dealt, since the player should only be able to hold/discard after being dealt cards
+            PokerCommandRequest.DISCARD_CARDS: CommandSchema(
                     display_name="Discard Cards",
                     command_class=commands.DiscardCardsCommand,
-                ) if self.game_phase == PokerPhase.PLAYER_TURN and not no_comm_cards else None,
-        ]
+                ) if not no_comm_cards else None,
+        }
 
-        return tuple(filter(None, comms))
+        return {key: cmd for key, cmd in comms.items() if cmd is not None}
 
     def get_snapshot(self) -> PokerSnapshot:
         """Returns a snapshot of the current game state, which can be used for rendering and for AI decision-making."""
