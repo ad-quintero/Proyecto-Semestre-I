@@ -18,7 +18,7 @@ from casino.games.slot_machine.slot_machine import (
 )
 from casino.games.slot_machine.renderer import SlotMachineRenderer
 from casino.games.roulette.roulette import Roulette, RouletteManager
-from casino.games.roulette.renderer import RouletteTerminalRenderer
+from casino.games.roulette.renderer import RouletteRenderer
 from casino.renderer import CasinoRenderer
 
 from nicegui import ui
@@ -66,7 +66,7 @@ class Casino:
                 name="Roulette",
                 game=Roulette,
                 manager=RouletteManager,
-                renderer=RouletteTerminalRenderer,
+                renderer=RouletteRenderer,
             )
         ]
 

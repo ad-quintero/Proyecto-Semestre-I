@@ -7,8 +7,8 @@ from casino.games.roulette.cells import Color, RouletteCell
 @dataclass(kw_only=True)
 class RouletteBet:
     """Represents a bet placed by a player on the roulette table."""
-    bet: float
-    payout: int  # Payout multiplier (e.g., 35 for a straight bet, 1 for red/black)
+    bet: float = 0
+    payout: int = 0 # Payout multiplier (e.g., 35 for a straight bet, 1 for red/black)
 
     def validate(self):
         raise NotImplementedError("Subclasses must implement validate method to ensure bet parameters are valid.")
@@ -126,7 +126,7 @@ class DozenBet(RouletteBet):
         return f"Dozen-{self.dozen}"
 
     def __str__(self):
-        return f"Dozen Bet on {self.dozen} with bet {self.bet} and payout {self.payout}"
+        return f"Dozen Bet on {self.dozen} ({'1-12' if self.dozen == 1 else '13-24' if self.dozen == 2 else '25-36'}) with bet {self.bet} and payout {self.payout}"
 
 @dataclass(kw_only=True)
 class ColumnBet(RouletteBet):
@@ -146,7 +146,7 @@ class ColumnBet(RouletteBet):
         return f"Column-{self.column}"
 
     def __str__(self):
-        return f"Column Bet on {self.column} with bet {self.bet} and payout {self.payout}"
+        return f"Column Bet on {"1st" if self.column == 1 else "2nd" if self.column == 2 else "3rd"} column with bet {self.bet} and payout {self.payout}"
 
 @dataclass(kw_only=True)
 class ColorBet(RouletteBet):
@@ -212,7 +212,7 @@ RouletteBet = Union[
     HighLowBet
 ]
 
-def is_winning_bet(bet: RouletteBet, cell: Union[RouletteCell, tuple[RouletteCell, RouletteCell]]) -> bool:
+def is_winning_bet(bet: RouletteBet, cell: RouletteCell) -> bool:
     """
         Determines if a given bet wins based on the roulette cell outcome.
         # Parameters
@@ -221,45 +221,42 @@ def is_winning_bet(bet: RouletteBet, cell: Union[RouletteCell, tuple[RouletteCel
         - cell (RouletteCell or tuple[RouletteCell, RouletteCell]): The outcome of the roulette spin.
         A single cell if the ball lands in a single pocket, or a tuple of two cells if the ball lands on the edge between two pockets.
     """
-    if isinstance(cell, tuple):
-        # If the ball lands on the edge, we consider it a win if it wins on either of the two adjacent pockets
-        return is_winning_bet(bet, cell[0]) or is_winning_bet(bet, cell[1])
-    else:
-        if isinstance(bet, StraightBet):
-            return cell.number == bet.number
-        elif isinstance(bet, SplitBet):
-            return cell.number in bet.numbers
-        elif isinstance(bet, StreetBet):
-            return cell.number in bet.numbers
-        elif isinstance(bet, CornerBet):
-            return cell.number in bet.numbers
-        elif isinstance(bet, LineBet):
-            return cell.number in bet.numbers
-        elif isinstance(bet, DozenBet):
-            if bet.dozen == 1:
-                return 1 <= cell.number <= 12
-            elif bet.dozen == 2:
-                return 13 <= cell.number <= 24
-            elif bet.dozen == 3:
-                return 25 <= cell.number <= 36
-        elif isinstance(bet, ColumnBet):
-            if bet.column == 1:
-                return cell.number % 3 == 1
-            elif bet.column == 2:
-                return cell.number % 3 == 2
-            elif bet.column == 3:
-                return cell.number % 3 == 0 and cell.number != 0
-        elif isinstance(bet, ColorBet):
-            return cell.color == bet.color
-        elif isinstance(bet, OddEvenBet):
-            if cell.number == 0:
-                return False
-            return (cell.number % 2 != 0) if bet.is_odd else (cell.number % 2 == 0)
-        elif isinstance(bet, HighLowBet):
-            if cell.number == 0:
-                return False
-            return (cell.number >= 19) if bet.is_high else (cell.number <= 18)
-        
+
+    if isinstance(bet, StraightBet):
+        return cell.number == bet.number
+    elif isinstance(bet, SplitBet):
+        return cell.number in bet.numbers
+    elif isinstance(bet, StreetBet):
+        return cell.number in bet.numbers
+    elif isinstance(bet, CornerBet):
+        return cell.number in bet.numbers
+    elif isinstance(bet, LineBet):
+        return cell.number in bet.numbers
+    elif isinstance(bet, DozenBet):
+        if bet.dozen == 1:
+            return 1 <= cell.number <= 12
+        elif bet.dozen == 2:
+            return 13 <= cell.number <= 24
+        elif bet.dozen == 3:
+            return 25 <= cell.number <= 36
+    elif isinstance(bet, ColumnBet):
+        if bet.column == 1:
+            return cell.number % 3 == 1
+        elif bet.column == 2:
+            return cell.number % 3 == 2
+        elif bet.column == 3:
+            return cell.number % 3 == 0 and cell.number != 0
+    elif isinstance(bet, ColorBet):
+        return cell.color == bet.color
+    elif isinstance(bet, OddEvenBet):
+        if cell.number == 0:
+            return False
+        return (cell.number % 2 != 0) if bet.is_odd else (cell.number % 2 == 0)
+    elif isinstance(bet, HighLowBet):
+        if cell.number == 0:
+            return False
+        return (cell.number >= 19) if bet.is_high else (cell.number <= 18)
+    
     raise ValueError(f"Unknown bet type: {type(bet)}")
 
 def bet_from_string(bet_str: str) -> RouletteBet:

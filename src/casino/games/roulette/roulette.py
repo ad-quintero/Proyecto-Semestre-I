@@ -2,13 +2,14 @@ from casino.games import Game, Snapshot
 from casino.games.game_manager import GameManager
 from casino.games.generic_events import GenericEvent
 from utils.event_listener import EventBus
-from casino.player import PlayerBuyIn, PlayerView
-from dataclasses import dataclass
+from casino.player import PlayerAccount, PlayerBuyIn, PlayerView
+from dataclasses import dataclass, replace
 from casino.games.roulette import bets
-from casino.games.roulette.events import RouletteEvents
+from casino.games.roulette.events import RouletteCommandRequest, RouletteEvents
 from utils.commands.command import CommandSchema, CommandParameter
 from casino.games.roulette import commands
 from casino.games.roulette.cells import Color, RouletteCell
+from casino.games.roulette.player_controller import RoulettePlayerController
 
 from typing import TYPE_CHECKING
 
@@ -24,11 +25,14 @@ class RouletteManager(GameManager):
     def __init__(
         self,
         game: Roulette,
-        event_bus: EventBus,
+        player: PlayerAccount,
         renderer: Renderer,
         buyin: PlayerBuyIn,
     ):
-        super().__init__(game, event_bus, renderer, buyin)
+        super().__init__(game, player, renderer, buyin)
+
+        self.player_controller = RoulettePlayerController(self.event_bus, self.command_manager, buyin.player_id)
+
 
 
 @dataclass
@@ -54,12 +58,11 @@ class RouletteSnapshot(Snapshot):
     """The table's wheel"""
     payouts: list[bets.RouletteBet]
     """List of winning bets from the last spin."""
-    landing_cell: RouletteCell | tuple[RouletteCell, RouletteCell] | None
+    landing_cell: RouletteCell | None
     """
-    `landing_cell` will be a single RouletteCell if the ball landed clearly in one pocket, 
-    or a tuple of two RouletteCells if it landed on the edge between them. It will be None if the wheel hasn't been spun yet.
+    `landing_cell` will be the landing cell of the last spin. It will be None if the wheel hasn't been spun yet.
     """
-    available_commands: list[CommandSchema]
+    available_commands: dict[RouletteCommandRequest, CommandSchema]
     """List of available commands for the player in the current game state."""
 
 
@@ -72,7 +75,7 @@ class Roulette(Game):
     bets: Dict[str, bets.RouletteBet]
     player: RoulettePlayer
     payouts: list[bets.RouletteBet]  # List of winning bets from the last spin
-    landing_cell: RouletteCell | tuple[RouletteCell, RouletteCell] | None = None
+    landing_cell: RouletteCell | None = None
 
     def __init__(self, event_bus: EventBus, buyin: PlayerBuyIn):
         super().__init__(event_bus, buyin)
@@ -84,6 +87,10 @@ class Roulette(Game):
     def start(self):
         self.event_bus.notify(RouletteEvents.PLAYER_TURN_START, self.get_snapshot())
         self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
+
+    def total_bet(self):
+        """Calculates the total amount of money currently bet on the table."""
+        return sum(bet.bet for bet in self.bets.values())
 
     def get_pocket_color(number: int) -> Color:
         """Determines the color of a roulette pocket based on its number."""
@@ -111,17 +118,20 @@ class Roulette(Game):
 
     def place_bet(self, bet: bets.RouletteBet):
         """Places a bet on the table. The player must have sufficient funds to cover the bet amount, and the bet will be added to any existing bet of the same type on the table."""
-        if bet.bet > self.player.funds:
+        if self.total_bet() + bet.bet > self.player.funds:
             raise ValueError(f"Insufficient funds to place bet of ${bet.bet}. Current funds: ${self.player.funds}")
 
         key = bet.key
 
-        if key in self.bets:
-            self.bets[key].bet += bet.bet  # If the same bet already exists, just increase the amount
+        existing_bet = self.bets.get(key)
+        if existing_bet:
+            existing_bet.bet += bet.bet  # If the same bet already exists, just increase the amount
         else:
-            self.bets[key] = bet
+            # Creating a copy because the frontend send the same bet object
+            # so when doing existing_bet.bet += bet.bet, it also modifies the original bet object, 
+            # which ends up doing nothing because the frontend modifies the bet.
+            self.bets[key] = replace(bet)
 
-        self.player.funds -= bet.bet
         self.event_bus.notify(RouletteEvents.BET_PLACED, self.get_snapshot())
         self.event_bus.notify(RouletteEvents.PLAYER_TURN_START, self.get_snapshot())
         self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
@@ -130,19 +140,7 @@ class Roulette(Game):
         """Removes a bet from the table, allowing the player to retrieve their funds. The bet must already exist on the table and the amount to remove cannot exceed the existing bet amount."""
         key = bet.key
 
-        if key not in self.bets:
-            raise ValueError("Bet not found on the table.")
-
-        existing_bet = self.bets[key]
-
-        if bet.bet > existing_bet.bet:
-            raise ValueError(f"Cannot remove more than the existing bet amount of ${existing_bet.bet}.")
-
-        existing_bet.bet -= bet.bet
-        self.player.funds += bet.bet
-
-        if existing_bet.bet == 0:
-            del self.bets[key]
+        del self.bets[key]
 
         self.event_bus.notify(RouletteEvents.BET_REMOVED, self.get_snapshot())
         self.event_bus.notify(RouletteEvents.PLAYER_TURN_START, self.get_snapshot())
@@ -158,38 +156,24 @@ class Roulette(Game):
         self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
 
     def spin_wheel(self):
-        landing_degree = random.uniform(0, 360) # Random degree between 0 and 360
+        self.player.funds -= self.total_bet()  # Deduct the total bet from the player's funds
 
-        # Determine which pocket index it's in
-        pocket_index = int(landing_degree // DEGREES_PER_POCKET)
+        # Clear data for the next round
+        self.landing_cell = None
+        self.payouts.clear()
 
-        # Find out exactly where inside that pocket the ball landed
-        position_in_pocket = landing_degree % DEGREES_PER_POCKET
-        
-        current_cell = self.wheel[pocket_index]
-        other_cell = None
-    
-        if position_in_pocket < EDGE_THRESHOLD:
-            # On the edge with the previous pocket
-            other_cell = self.wheel[(pocket_index - 1) % len(self.wheel)]
-        elif position_in_pocket > (DEGREES_PER_POCKET - EDGE_THRESHOLD):
-            # On the edge with the next pocket
-            other_cell = self.wheel[(pocket_index + 1) % len(self.wheel)]
-
-        self.landing_cell = (current_cell, other_cell) if other_cell else current_cell
+        self.landing_cell = random.choice(self.wheel)
 
         for bet in self.bets.values():
             # Check if the bet wins on either the current cell or the other cell (if on the edge)
-            if bets.is_winning_bet(bet, current_cell) or (other_cell and bets.is_winning_bet(bet, other_cell)):
+            if bets.is_winning_bet(bet, self.landing_cell):
                 self.player.funds += bet.earnings()
                 self.payouts.append(bet)
         
         self.event_bus.notify(RouletteEvents.SPIN_RESULT, self.get_snapshot())
 
-        # Clear data for the next round
-        self.landing_cell = None
-        self.payouts.clear()
         self.bets.clear()
+        self.event_bus.notify(RouletteEvents.BETS_CLEARED, self.get_snapshot())
 
         self.event_bus.notify(RouletteEvents.PLAYER_TURN_START, self.get_snapshot())
         self.event_bus.notify(GenericEvent.TURN_START, self.player.to_view())
@@ -202,15 +186,15 @@ class Roulette(Game):
             active_player=self.player.to_view(),
             bets=self.bets,
             wheel=self.wheel,
-            payouts=self.payouts,
+            payouts=list(self.payouts),
             landing_cell=self.landing_cell,
             available_commands=self.get_available_commands()
         )
     
-    def get_available_commands(self):
+    def get_available_commands(self) -> dict[RouletteCommandRequest, CommandSchema]:
         # todo run program a place bet
-        comms = [
-            CommandSchema(
+        comms = {
+            RouletteCommandRequest.PLACE_BET: CommandSchema(
                 display_name="Place Bet",
                 command_class=commands.PlaceBetCommand,
                 parameters=[CommandParameter(name="bet", prompt_text="""Enter bet details (
@@ -225,10 +209,10 @@ class Roulette(Game):
 - Odd/Even: "OddEven Odd 50" for a $50 bet on odd numbers
 - High/Low: "HighLow High 25" for a $25 bet on high numbers (19-36)
 ): """,
-                                        parser=lambda input_str: bets.bet_from_string(input_str),
+                                        parser=lambda bet: bet,
 )]
             ),
-            CommandSchema(
+            RouletteCommandRequest.REMOVE_BET: CommandSchema(
                 display_name="Remove Bet",
                 command_class=commands.RemoveBetCommand,
                 parameters=[CommandParameter(name="bet", prompt_text="""Enter bet details (
@@ -246,19 +230,19 @@ class Roulette(Game):
                                         parser=lambda input_str: bets.bet_from_string(input_str)
                                         )]
             ) if self.bets else None,  # Only show Remove Bet option if there are bets to remove
-            CommandSchema(
+            RouletteCommandRequest.SPIN_WHEEL: CommandSchema(
                 display_name="Spin Wheel",
                 command_class=commands.SpinWheelCommand,
             ) if self.bets else None,  # Only allow spinning the wheel if there are bets placed
-            CommandSchema(
+            RouletteCommandRequest.CLEAR_BETS: CommandSchema(
                 display_name="Clear Bets",
                 command_class=commands.ClearBetsCommand,
             ) if self.bets else None,  # Only show Clear Bets option if there are bets to clear
-            CommandSchema(
+            RouletteCommandRequest.END_GAME: CommandSchema(
                 display_name="Exit Game",
                 command_class=commands.EndRoundCommand,
             )  
-        ]
+        }
 
 
-        return [command for command in comms if command]
+        return {command: schema for command, schema in comms.items() if schema is not None}
