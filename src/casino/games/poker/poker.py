@@ -257,8 +257,8 @@ class Poker(Game):
         multiplier = 0
         hand_rank, cards = Poker.evaluate_hand([card.card for card in self.community_cards])
 
-        # Only pairs with jacks or better pay out. Everything else pays out according to the table
-        if hand_rank != HandRank.PAIR or (hand_rank == HandRank.PAIR and sum(1 for card in cards if card >= CardRank.JACK)):
+       # Only pairs with jacks or better pay out. Everything else pays out according to the table
+        if hand_rank != HandRank.PAIR or (hand_rank == HandRank.PAIR and cards[0] >= CardRank.JACK):
             multiplier = payout_table[hand_rank]
 
         self.player.funds += self.bet * multiplier
