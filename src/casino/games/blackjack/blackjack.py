@@ -297,7 +297,7 @@ class Blackjack(Game):
             BlackJackCommandRequest.HIT: CommandSchema("Hit", commands.HitCommand) if self.player.cards else None,
             BlackJackCommandRequest.STAND: CommandSchema("Stand", commands.StandCommand) if self.player.cards else None,
             BlackJackCommandRequest.RESET: CommandSchema("Reset Game", commands.ResetCommand) if self.game_phase == BlackjackPhase.ROUND_END else None,
-            BlackJackCommandRequest.END: CommandSchema("End Game", commands.EndCommand) if self.game_phase == BlackjackPhase.ROUND_END else None,
+            BlackJackCommandRequest.END: CommandSchema("End Game", commands.EndCommand),
         }
 
         return {

@@ -216,7 +216,7 @@ class BlackjackRenderer(Renderer):
                         ChipUI(ChipValue(chip.chip_value))
             
             if not self.command_area:
-                self.command_area = ui.column(align_items="center").classes("basis-1/4 flex flex-col items-center justify-center bg-red-300")
+                self.command_area = ui.column(align_items="center").classes("cmd-area relative basis-1/4 flex flex-col items-center justify-center bg-red-300")
 
     def reset_ui(self, _):
         self.active_bets.clear()
@@ -246,6 +246,7 @@ class BlackjackRenderer(Renderer):
         new_phase, snapshot = data
 
         self.can_place_bets = not snapshot.player_cards and not snapshot.dealer_cards
+        self.end_game_cmd = snapshot.available_commands.get(BlackJackCommandRequest.END)
 
         if new_phase == BlackjackPhase.PLAYER_TURN:
             with self.command_area:
@@ -271,11 +272,14 @@ class BlackjackRenderer(Renderer):
 
                             for chip in self.chips:
                                 chip.can_place_bet = snapshot.active_player.balance >= chip.chip_value and self.can_place_bets
+       
+                    end_game_btn = ui.button("End Game", on_click=lambda _: self.event_bus.notify(BlackJackCommandRequest.END, self.end_game_cmd)).classes("absolute bottom-2 right-5 bg-red-6 hover:bg-red-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed")
+                    end_game_btn.bind_enabled_from(self, 'cards', backward=lambda cards: len(cards) == 0)
+
         elif new_phase == BlackjackPhase.ROUND_END:
             for btn in self.command_buttons:
                 btn.delete()
             self.restart_round_cmd = snapshot.available_commands.get(BlackJackCommandRequest.RESET)
-            self.end_game_cmd = snapshot.available_commands.get(BlackJackCommandRequest.END)
 
     async def player_hit(self, snapshot: BlackjackSnapshot):
         # Keep the master container open so NiceGUI knows where to position these root containers
