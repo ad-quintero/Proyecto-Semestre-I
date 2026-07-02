@@ -12,6 +12,7 @@ from ui.models.card import CardUI
 from ui.models.chips import ChipUI, ChipValue
 from nicegui import ui, binding
 import asyncio
+from utils.audio import play_random_sound_from_directory, play_audio
 
 from dataclasses import dataclass
 
@@ -192,6 +193,8 @@ class BlackjackRenderer(Renderer):
                             # Switch the transform direction via inline style
                             btn_remove.style(f"transform: translateX({idx*110}%);")
 
+                            with self.container:
+                                play_random_sound_from_directory("assets/sfx/blackjack/chip")  # Play a random chip sound
                             await asyncio.sleep(0.3)
 
                             btn_remove.classes("cursor-pointer")
@@ -322,6 +325,9 @@ class BlackjackRenderer(Renderer):
             remove=blackjack_table_positions['deck']
         )
 
+        with self.container:
+            play_random_sound_from_directory("assets/sfx/card")  # Play a random card sound
+
         # 5. NOW it is safe to sleep! The slot stack is perfectly clean.
         await asyncio.sleep(0.5)
         
@@ -354,6 +360,10 @@ class BlackjackRenderer(Renderer):
             remove=blackjack_table_positions['deck']
         )
 
+        with self.container:
+            play_random_sound_from_directory("assets/sfx/card")  # Play a random card sound
+
+
         # 5. NOW it is safe to sleep! The slot stack is perfectly clean.
         await asyncio.sleep(0.5)
         
@@ -365,12 +375,18 @@ class BlackjackRenderer(Renderer):
         await self._reveal_all_cards()
         await asyncio.sleep(2)
 
+        with self.container:
+            play_audio("casino/win.mp3")
+
         self._show_end_modal(f"You win! Payout: ${abs(snapshot.payout)}")
 
     async def dealer_wins(self, snapshot: BlackjackSnapshot):
         await asyncio.sleep(1)  # Wait for any ongoing animations to finish
         await self._reveal_all_cards()
         await asyncio.sleep(2)
+
+        with self.container:
+            play_audio("casino/lose.mp3")
 
         self._show_end_modal(f"Dealer Wins. You lose your bet (${abs(snapshot.payout)}).")
 
@@ -379,7 +395,10 @@ class BlackjackRenderer(Renderer):
         await self._reveal_all_cards()
         await asyncio.sleep(2)
 
-        self._show_end_modal(f"Tie! No payout. Your bet (${abs(snapshot.payout)}) is returned.")
+        with self.container:
+            play_audio("casino/lose.mp3")
+
+        self._show_end_modal(f"Tie! Your bet (${abs(snapshot.payout)}) is returned.")
 
     async def _reveal_all_cards(self):
         for _, card in self.cards:

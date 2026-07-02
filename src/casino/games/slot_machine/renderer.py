@@ -8,6 +8,7 @@ from nicegui import ui
 from dataclasses import dataclass
 import asyncio
 import random
+from utils import audio
 
 class SlotMachineTerminalRenderer(Renderer):
     def __init__(self, event_bus):
@@ -67,7 +68,7 @@ class SlotMachineRenderer(Renderer):
         # We will store the INNER strips here to animate them later
         self.reels = [] 
 
-        with self.container:            
+        with self.container:
             with ui.element("div").classes("flex flex-col items-center gap-2 h-4/5 bg-gray-900 p-4 rounded-md"):
                 self.results_display = ui.label("Welcome to the Slot Machine!").classes('w-2/5 text-center text-lg font-bold mb-4 border-2 border-gray-300 p-2 rounded-md bg-white shadow-2xl shadow-cyan-500/50 ring-4 ring-indigo-500')
                 self.reels_container = ui.row().classes('flex items-center justify-center gap-4')
@@ -127,6 +128,9 @@ class SlotMachineRenderer(Renderer):
 
     def place_bet(self, amount: int):
         if self.place_bet_cmd:
+            with self.container:
+                audio.play_audio("casino/button.mp3")
+
             cmd = self.place_bet_cmd
             cmd.parameters[0].value = amount
             self.event_bus.notify(SlotMachineCommandRequest.CHANGE_BET, cmd)
@@ -147,6 +151,10 @@ class SlotMachineRenderer(Renderer):
         for bet_button in self.bet_buttons.values():
             bet_button.button.disable()
 
+
+        with self.container:
+            spin_audio = audio.play_audio("slot_machine/spin_loop.mp3", True).classes("spin-audio")
+
         self.results_display.set_text("Spinning!!!")
 
         # 1. Get the ordered list of all possible Enum members
@@ -164,11 +172,24 @@ class SlotMachineRenderer(Renderer):
             
         await asyncio.sleep(0.05) 
         
+        async def animate_reel(index, strip, duration_ms, target_y):
+            strip.style(
+                f'transition: transform {duration_ms}ms cubic-bezier(0.15, 0.85, 0.3, 1); '
+                f'transform: translateY(-{target_y}px);'
+            )
+            await asyncio.sleep(duration_ms / 1000.0)
+            with self.container:
+                # Play the stop sound for THIS reel
+                audio.play_audio("slot_machine/spin_end.mp3")
+
         # 2. Hardcoded height perfectly matches our CSS
         item_height = 60 
         ms_per_repetition = 150 
         
         current_spins = random.randint(10, 15)
+
+        reel_tasks = []
+        total_duration = 0
 
         for i, strip in enumerate(self.reels):
             if i > 0:
@@ -180,14 +201,33 @@ class SlotMachineRenderer(Renderer):
             # The math is now flawlessly exact: index * 60px
             y_offset = target_item * item_height
             duration_ms = current_spins * ms_per_repetition
+            total_duration += duration_ms
             
-            strip.style(
-                f'transition: transform {duration_ms}ms cubic-bezier(0.15, 0.85, 0.3, 1); '
-                f'transform: translateY(-{y_offset}px);'
-            )
+            reel_tasks.append(asyncio.create_task(animate_reel(i, strip, duration_ms, y_offset)))
 
-        final_duration_secs = duration_ms / 1000.0
-        await asyncio.sleep(final_duration_secs + 0.1)
+        with self.container:
+            ui.run_javascript(f'''
+                    const audio = document.getElementsByClassName("spin-audio")[0];
+                          
+                    const stepTime = 50; // Update every 50ms for smooth transitions
+                    const steps = {total_duration} / stepTime;
+                    const volumeStep = audio.volume / steps;
+
+                    const fadeInterval = setInterval(() => {{
+                        if (audio.volume > volumeStep) {{
+                            audio.volume -= volumeStep;
+                        }} else {{
+                            audio.volume = 0;
+                            audio.pause();
+                            clearInterval(fadeInterval);
+                            // Optional: Reset volume if you plan to play it again later
+                            // audio.volume = 1; 
+                        }}
+                    }}, stepTime);
+        ''')
+        await asyncio.gather(*reel_tasks)
+
+        spin_audio.delete()
 
         payout = snapshot.multiplier * snapshot.bet
 

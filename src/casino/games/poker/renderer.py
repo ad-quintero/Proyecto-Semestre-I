@@ -11,6 +11,7 @@ from .events import PokerCommandRequest
 from ui.models.card import CardUI
 from utils.cards import CardView, Card
 from utils.commands.command import CommandSchema
+from utils import audio
 
 from nicegui import ui, binding
 from dataclasses import dataclass
@@ -148,6 +149,8 @@ class PokerRenderer(Renderer):
 
     def place_bet(self, amount: int):
         if self.place_bet_cmd:
+            with self.container:
+                audio.play_audio("casino/button.mp3")
             cmd = self.place_bet_cmd
             cmd.parameters[0].value = amount
             self.event_bus.notify(PokerCommandRequest.CHANGE_BET, cmd)
@@ -172,11 +175,12 @@ class PokerRenderer(Renderer):
                         label = ui.label("Held")
                         label.classes("transition-opacity duration-200 ease-in-out text-sm text-gray-700 opacity-0")
                         self.cards.append(CardElement(card=card_elem, label=label, hold=False))
+                        audio.play_random_sound_from_directory("assets/sfx/card")
 
                     await asyncio.sleep(0.01)
 
                     card_elem.classes(remove=poker_positions['deck'], add=f"{poker_positions['cards']} translate-x-[{idx * 115}%] rotate-0")
-
+                    
                     await asyncio.sleep(0.2)
                     
                     await card.flip()
@@ -191,6 +195,9 @@ class PokerRenderer(Renderer):
                     card_elem.on("click", lambda idx=idx: hold_card(idx))
 
     def held_card(self, snapshot: PokerSnapshot):
+        with self.container:
+            audio.play_audio("poker/hold_card.mp3")
+
         for idx, card_view in enumerate(snapshot.community_cards):
             if card_view.hold:
                 card = self.cards[idx]
@@ -208,6 +215,9 @@ class PokerRenderer(Renderer):
         self.discarding_signal.clear()  # Indicate that discarding is in progress
 
         for idx, card in enumerate(self.cards):
+            with self.container:
+                audio.play_random_sound_from_directory("assets/sfx/card")
+
             if not card.hold:
                 card.label.classes("opacity-0")
                 card.card.classes("-translate-y-200").props("disable")
@@ -223,6 +233,8 @@ class PokerRenderer(Renderer):
                     card_elem = ui.element("button").classes(f"{poker_positions['deck']} transition-all duration-200 ease-in-out bg-transparent p-0 flex flex-col items-center justify-center gap-2")
 
                     with card_elem:
+                        audio.play_random_sound_from_directory("assets/sfx/card")
+
                         card_view.card.is_face_up = False
                         card = CardUI(card=card_view.card)
 
@@ -245,8 +257,12 @@ class PokerRenderer(Renderer):
     async def hand_over(self, snapshot: PokerSnapshot):
         await self.discarding_signal.wait()  # Wait for any ongoing discarding process to finish
         if snapshot.payout_multiplier and snapshot.payout_multiplier > 0:
+            with self.container:
+                audio.play_audio("casino/win.mp3")
             self._show_end_modal(f"You won {snapshot.bet * snapshot.payout_multiplier}$!")
         else:
+            with self.container:
+                audio.play_audio("casino/lose.mp3")
             self._show_end_modal(f"You lost {snapshot.bet}$! Better luck next time.")
 
     def _show_end_modal(self, msg: str):

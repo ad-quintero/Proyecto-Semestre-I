@@ -12,6 +12,8 @@ from nicegui.events import ClickEventArguments
 import random
 import asyncio
 
+from utils import audio
+
 class RouletteRenderer(Renderer):
     def __init__(self, event_bus: EventBus):
         super().__init__(event_bus)
@@ -280,6 +282,9 @@ class RouletteRenderer(Renderer):
         return chip
 
     def on_bet(self, snapshot: RouletteSnapshot):
+        with self.bets_table:
+            audio.play_random_sound_from_directory("assets/sfx/blackjack/chip")
+
         for key, bet in snapshot.bets.items():
             chip = self.chips.get(key)
             if chip:
@@ -339,7 +344,33 @@ class RouletteRenderer(Renderer):
 
         self.wheel.style(f"transition: transform {time}s ease-out; transform: rotate({-target_rotation}deg);")
 
+        with self.wheel:
+            wheel_audio = audio.play_audio("roulette/roulette.mp3", True).classes("wheel-audio")
+
+            ui.run_javascript(f'''
+                const audio = document.getElementsByClassName("wheel-audio")[0];
+                              
+                const stepTime = 50; // Update every 50ms for smooth transitions
+                const steps = {time * 1000} / stepTime;
+                const volumeStep = audio.volume / steps;
+
+                const fadeInterval = setInterval(() => {{
+                    if (audio.volume > volumeStep) {{
+                        audio.volume -= volumeStep;
+                    }} else {{
+                        audio.volume = 0;
+                        audio.pause();
+                        clearInterval(fadeInterval);
+                        // Optional: Reset volume if you plan to play it again later
+                        // audio.volume = 1; 
+                    }}
+                }}, stepTime);
+    ''')
+
+ 
         await asyncio.sleep(time)
+        wheel_audio.delete()
+
         self.current_rotation = target_rotation
 
         self.winning_bets_display.set_text(f"Payout: ${sum(bet.earnings() for bet in snapshot.payouts)}")
