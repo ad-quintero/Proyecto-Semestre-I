@@ -79,11 +79,11 @@ class RouletteRenderer(Renderer):
 
     def build_ui(self):
         if not self.container:
-            self.container = ui.element("div").classes("size-full flex justify-center items-center gap-10 bg-green-400")
+            self.container = ui.element("div").classes("size-full flex justify-center items-center gap-10 bg-emerald-700")
 
             with self.container:
                 with ui.element("div").classes("relative rounded-full"):
-                    ui.element("div").classes("absolute [clip-path:polygon(0_0,100%_0,50%_100%)] h-5 w-10 bg-blue-500 left-1/2 -translate-x-1/2 -top-7")
+                    ui.element("div").classes("absolute [clip-path:polygon(0_0,100%_0,50%_100%)] h-5 w-10 bg-fuchsia-500 left-1/2 -translate-x-1/2 -top-7")
 
                     with ui.element("div").classes("flex flex-col items-center justify-center gap-5"):
                         if not self.wheel:
@@ -92,7 +92,7 @@ class RouletteRenderer(Renderer):
                         cell_size = 360 / len(ROULETTE_ORDER)
                         self.wheel.style(f"transform: rotate({self.current_rotation}deg);")
                         with self.wheel:
-                            ui.element("div").classes("absolute size-full rounded-full bg-transparent border-10 border-orange-800 z-10 after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:size-20 after:bg-white after:rounded-full")
+                            ui.element("div").classes("absolute size-full rounded-full bg-transparent inset-ring-10 inset-ring-orange-800 z-10 after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:size-20 after:bg-white after:rounded-full")
 
                             for i, num in enumerate(ROULETTE_ORDER):
                                 color = "bg-red-400" if i % 2 == 1 else "bg-black"
@@ -101,7 +101,7 @@ class RouletteRenderer(Renderer):
                                 ui.label(str(num)).classes(f"absolute font-bold origin-bottom h-1/2 left-1/2 -translate-x-1/2 {color} text-white text-center [clip-path:polygon(0_0,100%_0,50%_100%)] pt-4").style(f"width: 31px; transform: rotate({i * cell_size}deg);")
 
                         with ui.element("div").classes("flex gap-2 justify-center items-center mt-5"):
-                            spin_btn = ui.button("Spin", on_click=lambda: self.event_bus.notify(RouletteCommandRequest.SPIN_WHEEL, self.spin_wheel_cmd)).classes("transition-colors duration-200 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg")
+                            spin_btn = ui.button("Spin", on_click=lambda: self.event_bus.notify(RouletteCommandRequest.SPIN_WHEEL, self.spin_wheel_cmd)).classes("size-20 transition-colors duration-200 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg")
                             spin_btn.bind_enabled_from(self, "spin_wheel_cmd")
                             
                             end_game_btn = ui.button("End Game", on_click=lambda: self.event_bus.notify(RouletteCommandRequest.END_GAME, self.end_game_cmd)).classes("transition-colors duration-200 bg-red-5 hover:bg-red-6 text-white font-bold py-2 px-4 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg")

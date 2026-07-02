@@ -49,7 +49,7 @@ class PokerTerminalRenderer(Renderer):
 
 
 poker_positions = {
-    "cards": "absolute top-1/2 left-1/4",
+    "cards": "absolute top-1/2 left-2/5",
     "deck": "absolute top-1/10 left-4/5 rotate-45",
 }
 
@@ -100,7 +100,7 @@ class PokerRenderer(Renderer):
 
     def build_ui(self):
         if not self.container:
-            self.container = ui.element('div').classes('relative size-full flex flex-col game-container')
+            self.container = ui.element('div').classes('relative size-full flex flex-col game-container bg-emerald-700')
 
         with self.container:
             if not self.game_area:
@@ -112,9 +112,9 @@ class PokerRenderer(Renderer):
                     CardUI(card=CardView())
 
             if not self.buttons_area:
-                self.buttons_area = ui.column().classes('gap-2')
+                self.buttons_area = ui.column().classes('gap-2 gap-y-10 items-center pb-50 pt-10 bg-cyan-900 shadow-2xl')
             with self.buttons_area:
-                with ui.column().classes("gap-2"):
+                with ui.row().classes("gap-10 text-white text-lg"):
                     self.player_funds_label = ui.label("Player funds: 0$")
                     ui.label("Bet: 0$").bind_text_from(self, "bet", backward=lambda f: f"Bet: {f}$")
 
@@ -266,11 +266,12 @@ class PokerRenderer(Renderer):
             dialog.close()
 
         with dialog:
-            ui.label(msg).classes("text-lg font-bold mb-4")
+            with ui.element("div").classes("flex flex-col items-center gap-4"):
+                ui.label(msg).classes("text-3xl text-white font-bold mb-4")
 
-            with ui.row().classes("justify-center gap-4"):
-                ui.button("Close", on_click=end_game)
-                ui.button("New Game", on_click=reset_game)
+                with ui.row().classes("justify-center gap-4"):
+                    ui.button("Close", on_click=end_game)
+                    ui.button("New Game", on_click=reset_game)
 
     def setup_commands(self, snapshot: PokerSnapshot):
         self.bet = snapshot.bet

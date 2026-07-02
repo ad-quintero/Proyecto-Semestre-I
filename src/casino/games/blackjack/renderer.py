@@ -124,8 +124,23 @@ class BlackjackRenderer(Renderer):
 
         with self.container:
             if not self.game_area:
-                self.game_area = ui.element('div').classes('relative grow bg-green-700 rounded-lg shadow-lg')
+                self.game_area = ui.element('div').classes('relative grow bg-green-700')
             with self.game_area:
+                blackjack_text = '''
+                    <svg viewBox="0 0 500 200" width="100%" height="auto">
+                    <path id="curve" d="M 50,150 Q 250,50 450,150" fill="transparent" />
+                    
+                    <text font-family="Times New Roman, serif" font-size="90" fill="white">
+                        <textPath href="#curve" startOffset="50%" text-anchor="middle">
+                        Blackjack
+                        </textPath>
+                    </text>
+                    </svg>
+                '''
+
+                with ui.element("div").classes("absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center"):
+                    ui.html(blackjack_text)
+
                 with ui.element("div").classes(f"{blackjack_table_positions["deck"]} pointer-events-none w-fit"):
                     CardUI(CardView(is_face_up=False))
 
@@ -216,7 +231,7 @@ class BlackjackRenderer(Renderer):
                         ChipUI(ChipValue(chip.chip_value))
             
             if not self.command_area:
-                self.command_area = ui.column(align_items="center").classes("cmd-area relative basis-1/4 flex flex-col items-center justify-center bg-red-300")
+                self.command_area = ui.column(align_items="center").classes("relative basis-1/4 flex flex-col items-center justify-center bg-amber-400")
 
     def reset_ui(self, _):
         self.active_bets.clear()
@@ -350,7 +365,7 @@ class BlackjackRenderer(Renderer):
         await self._reveal_all_cards()
         await asyncio.sleep(2)
 
-        self._show_end_modal(f"You win! Payout: (${abs(snapshot.payout)}).")
+        self._show_end_modal(f"You win! Payout: ${abs(snapshot.payout)}")
 
     async def dealer_wins(self, snapshot: BlackjackSnapshot):
         await asyncio.sleep(1)  # Wait for any ongoing animations to finish
@@ -388,10 +403,11 @@ class BlackjackRenderer(Renderer):
             dialog.close()
 
         with dialog:
-            ui.label(msg).classes("text-lg font-bold mb-4")
+            with ui.element("div").classes("flex flex-col"):
+                ui.label(msg).classes("text-3xl text-white font-bold mb-4")
 
-            with ui.row().classes("justify-center gap-4"):
-                ui.button("Close", on_click=end_game)
-                ui.button("New Game", on_click=reset_game)
+                with ui.row().classes("justify-center gap-4"):
+                    ui.button("Close", on_click=end_game)
+                    ui.button("New Game", on_click=reset_game)
 
 

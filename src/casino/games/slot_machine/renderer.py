@@ -62,65 +62,68 @@ class SlotMachineRenderer(Renderer):
         self.animation_cleared.set()
 
     def build_ui(self):
-        self.container = ui.element('div').classes('relative size-full flex flex-col items-center justify-center game-container')
+        self.container = ui.element('div').classes('prelative size-full flex flex-col items-center justify-end game-container bg-emerald-700')
 
         # We will store the INNER strips here to animate them later
         self.reels = [] 
 
-        with self.container:
-            self.results_display = ui.label("Welcome to the Slot Machine!").classes('text-lg font-bold mb-4 border-2 border-gray-300 p-2 rounded-md')
+        with self.container:            
+            with ui.element("div").classes("flex flex-col items-center gap-2 h-4/5 bg-gray-900 p-4 rounded-md"):
+                self.results_display = ui.label("Welcome to the Slot Machine!").classes('w-2/5 text-center text-lg font-bold mb-4 border-2 border-gray-300 p-2 rounded-md bg-white shadow-2xl shadow-cyan-500/50 ring-4 ring-indigo-500')
+                self.reels_container = ui.row().classes('flex items-center justify-center gap-4')
 
-            self.reels_container = ui.row().classes('flex items-center justify-center gap-4')
-            
-            with self.reels_container:
-                for _ in range(3):
-                    # 1. VIEWPORT: Fixed 120px height. Red lines explicitly at 30px.
-                    reel_viewport = ui.column().classes(
-                        'flex flex-col no-wrap items-center justify-start overflow-hidden relative w-20 '
-                        'h-[120px] border-red-500 border-2 '
-                        'after:content-[""] after:w-4/5 after:h-1 after:absolute after:bg-red-500 after:top-[30px] '
-                        'before:content-[""] before:w-4/5 before:h-1 before:absolute before:bg-red-500 before:bottom-[30px]'
-                    )
-                    
-                    with reel_viewport:
-                        # 2. STRIP: gap-0 is critical! pt-[30px] aligns the center slot.
-                        strip = ui.column().classes('flex flex-col items-center gap-0 pt-[30px]')
+                with self.reels_container:
+                    for _ in range(3):
+                        # 1. VIEWPORT: Fixed 120px height. Red lines explicitly at 30px.
+                        reel_viewport = ui.column().classes(
+                            'flex flex-col no-wrap items-center justify-start overflow-hidden relative w-20 bg-white ring-4 ring-red-600 shadow-2xl shadow-red-500/50 '
+                            'h-[120px] border-red-500 border-2 '
+                            'after:content-[""] after:w-4/5 after:h-1 after:absolute after:bg-red-500 after:top-[30px] '
+                            'before:content-[""] before:w-4/5 before:h-1 before:absolute before:bg-red-500 before:bottom-[30px]'
+                        )
                         
-                        with strip:
-                            for _ in range(100):
-                                for icon in Reels:
-                                    # 3. SYMBOLS: Locked to 60px height.
-                                    ui.label(icon.value).classes(
-                                        "h-[60px] w-full flex items-center justify-center text-4xl m-0 p-0 leading-none select-none"
-                                    )
+                        with reel_viewport:
+                            # 2. STRIP: gap-0 is critical! pt-[30px] aligns the center slot.
+                            strip = ui.column().classes('flex flex-col items-center gap-0 pt-[30px]')
+                            
+                            with strip:
+                                for _ in range(100):
+                                    for icon in Reels:
+                                        # 3. SYMBOLS: Locked to 60px height.
+                                        ui.label(icon.value).classes(
+                                            "h-[60px] w-full flex items-center justify-center text-4xl m-0 p-0 leading-none select-none"
+                                        )
 
-                    # Initialize the strip one sequence deep so the top "peek" slot isn't empty on load!
-                    initial_offset = len(Reels) * 60
-                    strip.style(f'transform: translateY(-{initial_offset}px)')
-                    self.reels.append(strip)
+                        # Initialize the strip one sequence deep so the top "peek" slot isn't empty on load!
+                        initial_offset = len(Reels) * 60
+                        strip.style(f'transform: translateY(-{initial_offset}px)')
+                        self.reels.append(strip)
 
-            self.funds_display = ui.label("Player Funds: $0.00").classes('text-lg font-bold')
-            self.bet_display = ui.label("Current Bet: $0.00").classes('text-lg font-bold')
-            self.bet_display.bind_text_from(self, "bet", backward=lambda f: f"Current Bet: ${f}")
+                self.bet_display = ui.label("Current Bet: $0.00").classes('text-4xl text-white font-bold')
+                self.bet_display.bind_text_from(self, "bet", backward=lambda f: f"Current Bet: ${f}")
 
-            self.commands_container = ui.element('div').classes('flex flex-col items-center justify-center gap-2')
 
-            with ui.row().classes('gap-2'):    
-                for bet_amount in [1, 5, 10, 25, 50, 100, 500, 1000]:
-                    with ui.column():
-                        button_classes = 'disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out'
-                        button_add = ui.button(f"+{bet_amount}$", on_click=lambda bet=bet_amount: self.place_bet(bet)).classes(f"{button_classes} bg-green-5 hover:bg-green-6")
-                        button_remove = ui.button(f"-{bet_amount}$", on_click=lambda bet=bet_amount: self.place_bet(-bet)).classes(f"{button_classes} bg-red-5 hover:bg-red-6")
-                        self.bet_buttons[bet_amount] = BetButton(bet_amount=bet_amount, button=button_add, enabled=True)
-                        self.bet_buttons[-bet_amount] = BetButton(bet_amount=-bet_amount, button=button_remove, enabled=True)
+                with ui.element("div").classes("flex flex-col justify-center items-center gap-4 grow p-10"):
+                    self.funds_display = ui.label("Player Funds: $0.00").classes('text-lg text-white font-bold')
+                    
+                    self.commands_container = ui.element('div').classes('flex flex-col items-center justify-center gap-2')
 
-            with ui.row().classes('gap-2'):
-                self.spin_button = ui.button("Spin", on_click=lambda: self.event_bus.notify(SlotMachineCommandRequest.SPIN, self.spin_cmd)).classes('bg-blue-5 hover:bg-blue-6 disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out')
-                self.spin_button.disable()  # Initially disable the spin button
-                self.spin_button.bind_enabled_from(self, "spin_cmd")
+                    with ui.row().classes('gap-2'):    
+                        for bet_amount in [1, 5, 10, 25, 50, 100, 500, 1000]:
+                            with ui.column():
+                                button_classes = 'disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out'
+                                button_add = ui.button(f"+{bet_amount}$", on_click=lambda bet=bet_amount: self.place_bet(bet)).classes(f"{button_classes} bg-green-5 hover:bg-green-6")
+                                button_remove = ui.button(f"-{bet_amount}$", on_click=lambda bet=bet_amount: self.place_bet(-bet)).classes(f"{button_classes} bg-red-5 hover:bg-red-6")
+                                self.bet_buttons[bet_amount] = BetButton(bet_amount=bet_amount, button=button_add, enabled=True)
+                                self.bet_buttons[-bet_amount] = BetButton(bet_amount=-bet_amount, button=button_remove, enabled=True)
 
-                self.end_button = ui.button("End Game", on_click=lambda: self.event_bus.notify(SlotMachineCommandRequest.END_GAME, self.end_cmd)).classes('bg-gray-5 hover:bg-gray-6 disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out')
-                self.end_button.bind_enabled_from(self, "end_cmd")
+                    with ui.column().classes('gap-10 items-center mt-10'):
+                        self.spin_button = ui.button("Spin", on_click=lambda: self.event_bus.notify(SlotMachineCommandRequest.SPIN, self.spin_cmd)).classes('bg-red-600! hover:bg-red-700! ring-6 ring-red-800 size-25 rounded-full disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out')
+                        self.spin_button.disable()  # Initially disable the spin button
+                        self.spin_button.bind_enabled_from(self, "spin_cmd")
+
+                        self.end_button = ui.button("End Game", on_click=lambda: self.event_bus.notify(SlotMachineCommandRequest.END_GAME, self.end_cmd)).classes('bg-red-600! hover:bg-red-700! disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out')
+                        self.end_button.bind_enabled_from(self, "end_cmd")
 
     def place_bet(self, amount: int):
         if self.place_bet_cmd:
@@ -143,6 +146,8 @@ class SlotMachineRenderer(Renderer):
         self.end_cmd = None
         for bet_button in self.bet_buttons.values():
             bet_button.button.disable()
+
+        self.results_display.set_text("Spinning!!!")
 
         # 1. Get the ordered list of all possible Enum members
         all_symbols = list(Reels) 
