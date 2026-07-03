@@ -1,6 +1,5 @@
 from utils.renderer import Renderer
 from utils.commands.command import CommandSchema
-from casino.games.generic_events import GenericEvent
 from casino.games.slot_machine.events import SlotMachineCommandRequest, SlotMachineEvents
 from casino.games.slot_machine.slot_machine import SlotMachineSnapshot, Reels
 from nicegui import ui

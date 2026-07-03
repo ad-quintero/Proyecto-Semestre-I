@@ -1,6 +1,4 @@
 from enum import Enum, auto
-from dataclasses import dataclass
-
 
 class SlotMachineEvents(Enum):
     """An enumeration of events that can occur in the Slot Machine game, used to notify listeners of changes in the game state."""

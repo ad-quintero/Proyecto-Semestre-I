@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from typing import TYPE_CHECKING, Union
+from typing import Union
 
 from casino.games.roulette.cells import Color, RouletteCell
 

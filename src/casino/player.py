@@ -86,38 +86,3 @@ class PlayerController:
         """Handles user input by looking up the corresponding command and executing it."""
         if self.is_my_turn:
             self.command_manager.execute_command(command_schema)
-
-
-class HumanController(PlayerController):
-    """
-    A class representing a human player in a casino game.
-    """
-
-    def __init__(
-        self, event_bus: EventBus, command_manager: CommandManager, player_id: UUID
-    ):
-        super().__init__(event_bus, command_manager, player_id)
-
-    def handle_input(self, user_input: str):
-        """Handles user input by looking up the corresponding command and executing it."""
-        if self.is_my_turn:
-            self.command_manager.handle_input(user_input)
-
-
-class CPUController(PlayerController):
-    """
-    A class representing a CPU player in a casino game.
-    The extended class should implement the logic for the CPU's actions based on the game state and its own strategy.
-    It should also subscribe to relevant game events on the __init__ method to know when it's the CPU's turn and react accordingly.
-    """
-
-    def __init__(
-        self,
-        name: str,
-        command_manager: CommandManager,
-        event_bus: EventBus,
-        player_id: UUID,
-    ):
-        # Initialize Player part
-        super().__init__(event_bus, command_manager, player_id)
-        self.name = name

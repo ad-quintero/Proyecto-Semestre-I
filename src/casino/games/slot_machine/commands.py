@@ -1,6 +1,4 @@
-from utils.commands.command import Command, CommandSchema, CommandParameter
-from utils.commands.command_manager import CommandManager
-
+from utils.commands.command import Command
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

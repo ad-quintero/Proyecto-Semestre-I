@@ -1,4 +1,3 @@
-from abc import ABC
 from utils.commands.command import Command, CommandSchema
 from typing import TYPE_CHECKING
 

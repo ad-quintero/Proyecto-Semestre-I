@@ -9,18 +9,16 @@ from utils.commands.command_manager import CommandManager
 from utils.commands.command_manager import CommandManager
 from utils.event_listener import EventBus
 from utils.cards import Deck, Card, CardView
-from casino.player import PlayerAccount, PlayerController
+from casino.player import PlayerAccount
 from dataclasses import dataclass
-import random
 from itertools import combinations
-from enum import Enum, IntEnum
+from enum import IntEnum
 from collections import Counter
 from casino.games.game_manager import GameManager
 from .phases import PokerPhase
 from .events import PokerEvent
 from . import commands
-from .cpu_player import PokerCPU
-from uuid import UUID, uuid4
+from uuid import UUID
 from casino.games import Snapshot
 from casino.player import PlayerBuyIn
 from dataclasses import dataclass

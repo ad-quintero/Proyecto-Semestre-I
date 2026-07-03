@@ -1,19 +1,15 @@
-from casino.games.blackjack import BlackJackCommandRequest
 from casino.games.generic_events import GenericEvent
-from casino.games.poker.phases import PokerPhase
-from casino.games.slot_machine.events import SlotMachineCommandRequest
-from utils import cards
 from utils.event_listener import EventBus
 from utils.renderer import Renderer
 from .poker import PokerSnapshot
 from .events import PokerEvent
 from .events import PokerCommandRequest
 from ui.models.card import CardUI
-from utils.cards import CardView, Card
+from utils.cards import CardView
 from utils.commands.command import CommandSchema
 from utils import audio
 
-from nicegui import ui, binding
+from nicegui import ui
 from dataclasses import dataclass
 import asyncio
 

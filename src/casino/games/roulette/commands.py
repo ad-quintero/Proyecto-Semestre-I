@@ -1,6 +1,5 @@
 from utils.commands.command import Command
 from casino.games.roulette.bets import RouletteBet
-from casino.games.roulette.bets import bet_from_string
 
 from typing import TYPE_CHECKING
 

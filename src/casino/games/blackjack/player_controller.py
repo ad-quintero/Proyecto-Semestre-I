@@ -4,7 +4,6 @@ from utils.commands.command_manager import CommandManager
 from uuid import UUID
 
 from casino.games.blackjack import BlackJackCommandRequest
-from utils.commands.command import CommandSchema
 
 class BlackjackPlayerController(PlayerController):
     """

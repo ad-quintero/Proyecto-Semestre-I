@@ -1,13 +1,11 @@
 from utils.commands.command import CommandSchema
 from utils.renderer import Renderer
 from utils.event_listener import EventBus
-from casino.games.roulette.roulette import RouletteSnapshot, RouletteCell, Color
+from casino.games.roulette.roulette import RouletteSnapshot
 from casino.games.roulette import bets
 from casino.games.roulette.events import RouletteCommandRequest, RouletteEvents
-from casino.games.generic_events import GenericEvent
 
 from nicegui import ui
-from nicegui.events import ClickEventArguments
 
 import random
 import asyncio
