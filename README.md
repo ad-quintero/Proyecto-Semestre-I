@@ -23,3 +23,5 @@ Este proyecto esta enfocado en una arquitectura de programación orientada a obj
 3. Instalar dependencias `pip install -r requirements.txt`
 4. Instalar este proyecto como dependencia `pip install .`. Ejecutar con el argumento _editable_ si se desean hacer cambios al código `pip install -e .`.
 5. Ejecutar `python main.py`.
+
+**Advertencia:** Por razones de seguridad y privacidad los buscadores modernos [no permiten reproducción de audio automática](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay). Si se desea reproducir la música de fondo de la página esta debe ser ser manualmente autorizada.

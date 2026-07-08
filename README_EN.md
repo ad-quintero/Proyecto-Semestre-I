@@ -22,5 +22,6 @@ This project focuses on an object-oriented programming architecture. Each game, 
     - **Linux and macOS:** `python3 -m venv venv && source venv/bin/activate`
 3. Install dependencies `pip install -r requirements.txt`
 4. Install this project as a dependency `pip install .`. Run with the _editable_ argument if you want to make changes to the code `pip install -e .`.
-
 5. Run `python main.py`.
+
+**Warning:** Due to security and privacy reasons, modern browsers [disallow audio autoplay](https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Autoplay). In order to play the site's background music it must be manually authorized.
