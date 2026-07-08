@@ -66,11 +66,11 @@ class BlackjackTerminalRenderer(Renderer):
         print(f"Dealer's Hand: {', '.join(str(card) for card in self.dealer_cards)}")
 
 blackjack_table_positions = {
-    "deck": "absolute left-9/10 top-10 rotate-45",
+    "deck": "absolute left-4/5 top-15 rotate-45",
     "chips": "absolute left-9/10 bottom-1/10",
     "pot": "absolute bottom-1/2 left-1/4",
-    "dealer_cards": "absolute top-10 left-1/2 -translate-x-1/2",
-    "player_cards": "absolute top-8/10 left-1/2 -translate-x-1/2",
+    "dealer_cards": "absolute top-10 left-2/5 -translate-x-1/2",
+    "player_cards": "absolute top-8/10 left-2/5 -translate-x-1/2",
     "buttons": "absolute top-1/2 right-5 -translate-x-1/2",
     "player_data": "absolute top-8/10 left-1/2 -translate-x-1/2",
 }
@@ -115,7 +115,7 @@ class BlackjackRenderer(Renderer):
     @property
     def total_bet(self) -> str:
         total = sum(value * key for key, value in self.active_bets.items())
-        return f"Current bet: ${total}" if total > 0 else ""
+        return f"Apuesta Total: ${total}" if total > 0 else ""
 
     def build_ui(self):
         if self.container is None:
@@ -123,8 +123,10 @@ class BlackjackRenderer(Renderer):
 
         with self.container:
             if not self.game_area:
-                self.game_area = ui.element('div').classes('relative grow bg-green-700')
+                self.game_area = ui.element('div').classes('relative grow').style("background-image: url('assets/images/texture.png'); background-size: cover; background-position: center;")
             with self.game_area:
+                ui.image("assets/images/logo.svg").classes("absolute top-10 left-10 w-90 h-auto user-select-none pointer-events-none")
+
                 blackjack_text = '''
                     <svg viewBox="0 0 500 200" width="100%" height="auto">
                     <path id="curve" d="M 50,150 Q 250,50 450,150" fill="transparent" />
@@ -137,7 +139,7 @@ class BlackjackRenderer(Renderer):
                     </svg>
                 '''
 
-                with ui.element("div").classes("absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center"):
+                with ui.element("div").classes("absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center"):
                     ui.html(blackjack_text)
 
                 with ui.element("div").classes(f"{blackjack_table_positions["deck"]} pointer-events-none w-fit"):
@@ -147,7 +149,7 @@ class BlackjackRenderer(Renderer):
                 self.player_hand = ui.row().classes(blackjack_table_positions["player_cards"])
                 self.dealer_hand = ui.row().classes(blackjack_table_positions["dealer_cards"])
 
-                self.pot = ui.label(f"").classes(f"{blackjack_table_positions['pot']} translate-y-10 left-1/2! -translate-x-1/2 text-sm text-white mt-2")
+                self.pot = ui.label(f"").classes(f"{blackjack_table_positions['pot']} translate-y-50 left-1/2! -translate-x-1/2 text-4xl text-white bg-pink-600 rounded-lg p-2 font-bold empty:p-0")
                 self.pot.bind_text_from(self, 'total_bet')
                 # Chips
                 for i, chip in enumerate(self.chips):
@@ -231,8 +233,15 @@ class BlackjackRenderer(Renderer):
                     with btn:
                         ChipUI(ChipValue(chip.chip_value))
             
+                       
+                end_game_btn = ui.button("Finalizar", on_click=lambda _: self.event_bus.notify(BlackJackCommandRequest.END, self.end_game_cmd)).classes("absolute bottom-10 left-10 bg-yellow-500! hover:bg-yellow-600! text-black text-4xl font-bold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed")
+                end_game_btn.bind_enabled_from(self, 'cards', backward=lambda cards: len(cards) == 0)
+
+
             if not self.command_area:
-                self.command_area = ui.column(align_items="center").classes("relative basis-1/4 flex flex-col items-center justify-center bg-amber-400")
+                with ui.column().classes("basis-1/4 flex flex-col items-center justify-around bg-[#1b0047] text-white"):
+                    ui.image("assets/images/logo_blackjack.png").classes("w-full h-auto")
+                    self.command_area = ui.column(align_items="center").classes("relative flex flex-col items-center justify-around text-white w-full")
 
     def reset_ui(self, _):
         self.active_bets.clear()
@@ -267,12 +276,11 @@ class BlackjackRenderer(Renderer):
         if new_phase == BlackjackPhase.PLAYER_TURN:
             with self.command_area:
                     self.command_area.clear()
-
                     with ui.column().classes('w-full flex flex-col items-center gap-4 mt-4'):
-                        ui.label(f"{snapshot.active_player.name}").classes('text-xl font-bold mb-4')
-                        ui.label(f"Balance: ${snapshot.active_player.balance}").classes('text-lg mb-4')
+                        ui.label(f"{snapshot.active_player.name}").classes('text-4xl font-bold mb-4 font-bold')
+                        ui.label(f"Balance de jugador: ${snapshot.active_player.balance}").classes('text-xl mb-4')
 
-                    ui.label("Available Commands").classes('text-lg font-bold mb-2')
+                    ui.label("Comandos disponibles").classes('text-4xl font-bold mb-10')
 
                     enums = snapshot.available_commands.keys()
                     self.can_place_bets = BlackJackCommandRequest.PLACE_BET in enums or BlackJackCommandRequest.REMOVE_BET in enums
@@ -280,7 +288,7 @@ class BlackjackRenderer(Renderer):
                     self.command_buttons.clear()
                     for enum, cmd in snapshot.available_commands.items():
                         if enum not in (BlackJackCommandRequest.PLACE_BET, BlackJackCommandRequest.REMOVE_BET, BlackJackCommandRequest.RESET, BlackJackCommandRequest.END):
-                            btn = ui.button(cmd.display_name, on_click=lambda _, cmd=cmd: self.event_bus.notify(enum, cmd))
+                            btn = ui.button(cmd.display_name, on_click=lambda _, cmd=cmd: self.event_bus.notify(enum, cmd)).classes("w-1/2 text-4xl mb-10")
                             self.command_buttons.append(btn)
                         else:
                             self.place_bet_cmd = cmd if enum == BlackJackCommandRequest.PLACE_BET else self.place_bet_cmd
@@ -288,9 +296,6 @@ class BlackjackRenderer(Renderer):
 
                             for chip in self.chips:
                                 chip.can_place_bet = snapshot.active_player.balance >= chip.chip_value and self.can_place_bets
-       
-                    end_game_btn = ui.button("End Game", on_click=lambda _: self.event_bus.notify(BlackJackCommandRequest.END, self.end_game_cmd)).classes("absolute bottom-2 right-5 bg-red-6 hover:bg-red-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50 disabled:cursor-not-allowed")
-                    end_game_btn.bind_enabled_from(self, 'cards', backward=lambda cards: len(cards) == 0)
 
         elif new_phase == BlackjackPhase.ROUND_END:
             for btn in self.command_buttons:
@@ -301,7 +306,7 @@ class BlackjackRenderer(Renderer):
         # Keep the master container open so NiceGUI knows where to position these root containers
         card = snapshot.player_cards[-1]
         idx = len(snapshot.player_cards) - 1
-        card_pos = f"{blackjack_table_positions['player_cards']} translate-x-{idx}/1"
+        card_pos = f"{blackjack_table_positions['player_cards']} translate-x-[{idx * 110}%]"
 
         flying_card = None
     
@@ -335,7 +340,7 @@ class BlackjackRenderer(Renderer):
     async def dealer_hit(self, snapshot: BlackjackSnapshot):
         card = snapshot.dealer_cards[-1]
         idx = len(snapshot.dealer_cards) - 1
-        card_pos = f"{blackjack_table_positions['dealer_cards']} translate-x-{idx}/1"
+        card_pos = f"{blackjack_table_positions['dealer_cards']} translate-x-[{idx * 110}%]"
 
         is_face_up = card.is_face_up
 
@@ -376,7 +381,7 @@ class BlackjackRenderer(Renderer):
         with self.container:
             play_audio("casino/win.mp3")
 
-        self._show_end_modal(f"You win! Payout: ${abs(snapshot.payout)}")
+        self._show_end_modal(f"¡Ganaste! Pago: ${abs(snapshot.payout)}")
 
     async def dealer_wins(self, snapshot: BlackjackSnapshot):
         await asyncio.sleep(1)  # Wait for any ongoing animations to finish
@@ -386,7 +391,7 @@ class BlackjackRenderer(Renderer):
         with self.container:
             play_audio("casino/lose.mp3")
 
-        self._show_end_modal(f"Dealer Wins. You lose your bet (${abs(snapshot.payout)}).")
+        self._show_end_modal(f"¡El dealer gana! Pierdes tu apuesta (${abs(snapshot.payout)}).")
 
     async def tie(self, snapshot: BlackjackSnapshot):
         await asyncio.sleep(1)  # Wait for any ongoing animations to finish
@@ -396,7 +401,7 @@ class BlackjackRenderer(Renderer):
         with self.container:
             play_audio("casino/lose.mp3")
 
-        self._show_end_modal(f"Tie! Your bet (${abs(snapshot.payout)}) is returned.")
+        self._show_end_modal(f"¡Empate! Tu apuesta (${abs(snapshot.payout)}) es devuelta.")
 
     async def _reveal_all_cards(self):
         for _, card in self.cards:
@@ -424,7 +429,7 @@ class BlackjackRenderer(Renderer):
                 ui.label(msg).classes("text-3xl text-white font-bold mb-4")
 
                 with ui.row().classes("justify-center gap-4"):
-                    ui.button("Close", on_click=end_game)
-                    ui.button("New Game", on_click=reset_game)
+                    ui.button("Cerrar", on_click=end_game)
+                    ui.button("Nueva Partida", on_click=reset_game)
 
 

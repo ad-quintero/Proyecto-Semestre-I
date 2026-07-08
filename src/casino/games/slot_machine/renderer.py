@@ -21,7 +21,7 @@ class SlotMachineTerminalRenderer(Renderer):
         if multiplier := snapshot.multiplier > 1:
             print(f"Congratulations! You won with a multiplier of {snapshot.multiplier}x!")
     
-        print(f"Player Funds: ${snapshot.active_player.funds:.2f}")
+        print(f"Fondos del jugador: ${snapshot.active_player.funds:.2f}")
 
     def available_commands(self, snapshot: SlotMachineSnapshot) -> list[str]:
         for i, command in enumerate(snapshot.available_commands, start=1):
@@ -35,6 +35,10 @@ class BetButton:
     enabled: bool
 
 class SlotMachineRenderer(Renderer):
+    SYMBOL_HEIGHT = 112
+    VIEWPORT_HEIGHT = SYMBOL_HEIGHT * 2
+    HALF_SYMBOL = SYMBOL_HEIGHT // 2
+
     def __init__(self, event_bus):
         super().__init__(event_bus)
 
@@ -62,68 +66,80 @@ class SlotMachineRenderer(Renderer):
         self.animation_cleared.set()
 
     def build_ui(self):
-        self.container = ui.element('div').classes('prelative size-full flex flex-col items-center justify-end game-container bg-emerald-700')
+        self.container = ui.element('div').classes('prelative size-full flex flex-col items-center justify-stretch game-container bg-emerald-700')
 
         # We will store the INNER strips here to animate them later
         self.reels = [] 
 
         with self.container:
-            with ui.element("div").classes("flex flex-col items-center gap-2 h-4/5 bg-gray-900 p-4 rounded-md"):
-                self.results_display = ui.label("Welcome to the Slot Machine!").classes('w-2/5 text-center text-lg font-bold mb-4 border-2 border-gray-300 p-2 rounded-md bg-white shadow-2xl shadow-cyan-500/50 ring-4 ring-indigo-500')
-                self.reels_container = ui.row().classes('flex items-center justify-center gap-4')
+            with ui.element("div").classes("grow w-full flex items-center justify-around p-0").style("background-image: url('assets/images/texture.png'); background-size: cover; background-position: center;"):
+                self.results_display = ui.label("Tragamonedas").classes('w-1/4 text-center text-6xl text-white font-bold border-5 border-black p-4 rounded-lg bg-red-800')
+                self.reels_container = ui.row().classes('flex items-center justify-center gap-4 bg-[#e0bc62] p-10 rounded-4xl border-10 border-black')
 
                 with self.reels_container:
-                    for _ in range(3):
-                        # 1. VIEWPORT: Fixed 120px height. Red lines explicitly at 30px.
-                        reel_viewport = ui.column().classes(
-                            'flex flex-col no-wrap items-center justify-start overflow-hidden relative w-20 bg-white ring-4 ring-red-600 shadow-2xl shadow-red-500/50 '
-                            'h-[120px] border-red-500 border-2 '
-                            'after:content-[""] after:w-4/5 after:h-1 after:absolute after:bg-red-500 after:top-[30px] '
-                            'before:content-[""] before:w-4/5 before:h-1 before:absolute before:bg-red-500 before:bottom-[30px]'
-                        )
-                        
-                        with reel_viewport:
-                            # 2. STRIP: gap-0 is critical! pt-[30px] aligns the center slot.
-                            strip = ui.column().classes('flex flex-col items-center gap-0 pt-[30px]')
+                    with ui.element("div").classes("flex items-center justify-center gap-10 p-5 border-20 border-red-800 rounded-4xl"):
+                        for _ in range(3):
+                            # 1. VIEWPORT: Calculated dynamic heights & offsets using inline styles for perfect scaling
+                            reel_viewport = ui.column().classes(
+                                'flex flex-col no-wrap items-center justify-start overflow-hidden relative w-30 bg-white '
+                                'border-black border-5 rounded-lg '
+                                'after:content-[""] after:w-4/5 after:h-1 after:absolute after:bg-red-500 '
+                                'before:content-[""] before:w-4/5 before:h-1 before:absolute before:bg-red-500'
+                            ).style(
+                                f'height: {SlotMachineRenderer.VIEWPORT_HEIGHT}px; '
+                                f'--after-top: {SlotMachineRenderer.HALF_SYMBOL}px; --before-bottom: {SlotMachineRenderer.HALF_SYMBOL}px;'
+                            )
+                            # Inject custom CSS properties dynamically to handle the absolute win-lines scaling
+                            ui.add_head_html(f'''
+                                <style>
+                                    [style*="--after-top"]::after {{ top: var(--after-top) !important; }}
+                                    [style*="--before-bottom"]::before {{ bottom: var(--before-bottom) !important; }}
+                                </style>
+                            ''')
                             
-                            with strip:
-                                for _ in range(100):
-                                    for icon in Reels:
-                                        # 3. SYMBOLS: Locked to 60px height.
-                                        ui.label(icon.value).classes(
-                                            "h-[60px] w-full flex items-center justify-center text-4xl m-0 p-0 leading-none select-none"
-                                        )
+                            with reel_viewport:
+                                # 2. STRIP: Dynamic padding-top aligns the center slot.
+                                strip = ui.column().classes('flex flex-col items-center gap-0').style(f'padding-top: {SlotMachineRenderer.HALF_SYMBOL}px')
+                                
+                                with strip:
+                                    for _ in range(100):
+                                        for icon in Reels:
+                                            # 3. SYMBOLS: Height set dynamically from SlotMachineRenderer.SYMBOL_HEIGHT variable
+                                            ui.label(icon.value).classes(
+                                                "w-full flex items-center justify-center text-7xl m-0 p-0 leading-none select-none"
+                                            ).style(f'height: {SlotMachineRenderer.SYMBOL_HEIGHT}px')
 
-                        # Initialize the strip one sequence deep so the top "peek" slot isn't empty on load!
-                        initial_offset = len(Reels) * 60
-                        strip.style(f'transform: translateY(-{initial_offset}px)')
-                        self.reels.append(strip)
+                            # Initialize the strip one sequence deep so the top "peek" slot isn't empty on load!
+                            initial_offset = len(Reels) * SlotMachineRenderer.SYMBOL_HEIGHT
+                            strip.style(f'transform: translateY(-{initial_offset}px)')
+                            self.reels.append(strip)
 
-                self.bet_display = ui.label("Current Bet: $0.00").classes('text-4xl text-white font-bold')
-                self.bet_display.bind_text_from(self, "bet", backward=lambda f: f"Current Bet: ${f}")
+                ui.image("assets/images/logo.svg").classes('w-1/5 h-auto self-start mt-10')
 
+            with ui.element("div").classes("grow w-full flex flex-col justify-center items-center gap-10 p-10 bg-[#1b0047]"):
+                with ui.element("div").classes("flex gap-4 text-white text-4xl gap-10"):
+                    self.bet_display = ui.label("Apuesta: $0.00")
+                    self.bet_display.bind_text_from(self, "bet", backward=lambda f: f"Apuesta: ${f}")
 
-                with ui.element("div").classes("flex flex-col justify-center items-center gap-4 grow p-10"):
-                    self.funds_display = ui.label("Player Funds: $0.00").classes('text-lg text-white font-bold')
-                    
-                    self.commands_container = ui.element('div').classes('flex flex-col items-center justify-center gap-2')
+                    self.funds_display = ui.label("Fondos del Jugador: $0.00")
 
-                    with ui.row().classes('gap-2'):    
-                        for bet_amount in [1, 5, 10, 25, 50, 100, 500, 1000]:
-                            with ui.column():
-                                button_classes = 'disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out'
-                                button_add = ui.button(f"+{bet_amount}$", on_click=lambda bet=bet_amount: self.place_bet(bet)).classes(f"{button_classes} bg-green-5 hover:bg-green-6")
-                                button_remove = ui.button(f"-{bet_amount}$", on_click=lambda bet=bet_amount: self.place_bet(-bet)).classes(f"{button_classes} bg-red-5 hover:bg-red-6")
-                                self.bet_buttons[bet_amount] = BetButton(bet_amount=bet_amount, button=button_add, enabled=True)
-                                self.bet_buttons[-bet_amount] = BetButton(bet_amount=-bet_amount, button=button_remove, enabled=True)
+                with ui.row().classes('gap-2'):    
+                    for bet_amount in [1, 5, 10, 25, 50, 100, 500, 1000]:
+                        with ui.column():
+                            button_classes = 'disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out text-4xl w-30 rounded-md p-2 min-h-0'
+                            button_add = ui.button(f"+{bet_amount}", on_click=lambda bet=bet_amount: self.place_bet(bet)).classes(f"{button_classes} bg-green-8 hover:bg-green-9")
+                            button_remove = ui.button(f"-{bet_amount}", on_click=lambda bet=bet_amount: self.place_bet(-bet)).classes(f"{button_classes} bg-[#cf035c]! hover:brightness-115")
+                            self.bet_buttons[bet_amount] = BetButton(bet_amount=bet_amount, button=button_add, enabled=True)
+                            self.bet_buttons[-bet_amount] = BetButton(bet_amount=-bet_amount, button=button_remove, enabled=True)
 
-                    with ui.column().classes('gap-10 items-center mt-10'):
-                        self.spin_button = ui.button("Spin", on_click=lambda: self.event_bus.notify(SlotMachineCommandRequest.SPIN, self.spin_cmd)).classes('bg-red-600! hover:bg-red-700! ring-6 ring-red-800 size-25 rounded-full disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out')
-                        self.spin_button.disable()  # Initially disable the spin button
-                        self.spin_button.bind_enabled_from(self, "spin_cmd")
+                with ui.column().classes('gap-10 items-center mt-10'):
+                    self.end_button = ui.button("Finalizar", on_click=lambda: self.event_bus.notify(SlotMachineCommandRequest.END_GAME, self.end_cmd)).classes('bg-yellow-400! hover:bg-yellow-500! text-black font-bold text-2xl rounded-md disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out')
+                    self.end_button.bind_enabled_from(self, "end_cmd")
 
-                        self.end_button = ui.button("End Game", on_click=lambda: self.event_bus.notify(SlotMachineCommandRequest.END_GAME, self.end_cmd)).classes('bg-red-600! hover:bg-red-700! disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out')
-                        self.end_button.bind_enabled_from(self, "end_cmd")
+                self.spin_button = ui.button("PRESIONAR", on_click=lambda: self.event_bus.notify(SlotMachineCommandRequest.SPIN, self.spin_cmd)).classes('bg-transparent! size-55 text-xl rounded-full disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out absolute right-40')
+                self.spin_button.style("background-image: url('assets/images/button.png') !important; background-size: cover !important; background-position: center !important;")
+                self.spin_button.disable()  # Initially disable the spin button
+                self.spin_button.bind_enabled_from(self, "spin_cmd")
 
     def place_bet(self, amount: int):
         if self.place_bet_cmd:
@@ -138,7 +154,7 @@ class SlotMachineRenderer(Renderer):
         await self.animation_cleared.wait()  # Wait for any ongoing animation to finish
 
         self.bet = snapshot.bet
-        self.funds_display.set_text(f"Player Funds: ${snapshot.active_player.funds:.2f}")
+        self.funds_display.set_text(f"Fondos del jugador: ${snapshot.active_player.funds:.2f}")
         self._setup_commands(snapshot)
 
     async def spin_results(self, snapshot: SlotMachineSnapshot):
@@ -150,21 +166,21 @@ class SlotMachineRenderer(Renderer):
         for bet_button in self.bet_buttons.values():
             bet_button.button.disable()
 
-
         with self.container:
             spin_audio = audio.play_audio("slot_machine/spin_loop.mp3", True).classes("spin-audio")
 
-        self.results_display.set_text("Spinning!!!")
+        self.results_display.set_text("Girando!!!")
 
         # 1. Get the ordered list of all possible Enum members
         all_symbols = list(Reels) 
         
         # 2. Find the integer index for each symbol in the result tuple
-        # For the example above, this will generate something like [0, 2, 3]
         winning_indices = [all_symbols.index(symbol) for symbol in snapshot.reels]
 
         items_per_reel = len(Reels)
-        safe_start_offset = items_per_reel * 2
+        
+        # Redefined inside functions locally to ensure scope sync
+        safe_start_offset = items_per_reel * 2 * SlotMachineRenderer.SYMBOL_HEIGHT
         
         for strip in self.reels:
             strip.style(f'transition: none; transform: translateY(-{safe_start_offset}px);')
@@ -181,10 +197,7 @@ class SlotMachineRenderer(Renderer):
                 # Play the stop sound for THIS reel
                 audio.play_audio("slot_machine/spin_end.mp3")
 
-        # 2. Hardcoded height perfectly matches our CSS
-        item_height = 60 
         ms_per_repetition = 150 
-        
         current_spins = random.randint(10, 15)
 
         reel_tasks = []
@@ -197,8 +210,8 @@ class SlotMachineRenderer(Renderer):
             # We add the safe_start offset to ensure we spin past the initial state
             target_item = (current_spins * items_per_reel) + winning_indices[i] + items_per_reel
             
-            # The math is now flawlessly exact: index * 60px
-            y_offset = target_item * item_height
+            # Size Independent Math: total item position multiplied safely by dynamic variable
+            y_offset = target_item * SlotMachineRenderer.SYMBOL_HEIGHT
             duration_ms = current_spins * ms_per_repetition
             total_duration += duration_ms
             
@@ -219,8 +232,6 @@ class SlotMachineRenderer(Renderer):
                             audio.volume = 0;
                             audio.pause();
                             clearInterval(fadeInterval);
-                            // Optional: Reset volume if you plan to play it again later
-                            // audio.volume = 1; 
                         }}
                     }}, stepTime);
         ''')
@@ -231,12 +242,12 @@ class SlotMachineRenderer(Renderer):
         payout = snapshot.multiplier * snapshot.bet
 
         if payout > 0:
-            self.results_display.set_text(f"You won ${payout}!")
+            self.results_display.set_text(f"Ganaste ${payout}!")
         else:
-            self.results_display.set_text("Better luck next time!")
+            self.results_display.set_text("¡Mejor suerte la próxima vez!")
 
-        self.animation_cleared.set()  # Allow player_choice to be called again
-
+        self.animation_cleared.set()    
+        
     def _setup_commands(self, snapshot: SlotMachineSnapshot):
         self.spin_cmd = snapshot.available_commands.get(SlotMachineCommandRequest.SPIN)
         self.end_cmd = snapshot.available_commands.get(SlotMachineCommandRequest.END_GAME)

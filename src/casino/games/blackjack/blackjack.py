@@ -292,9 +292,9 @@ class Blackjack(Game):
         comms = {
             BlackJackCommandRequest.PLACE_BET: CommandSchema("Place Bet", commands.PlaceBetCommand, parameters=[CommandParameter(name="amount", prompt_text="Enter bet amount:", parser=int)]) if self.game_phase == BlackjackPhase.PLAYER_TURN and not self.player.cards else None,
             BlackJackCommandRequest.REMOVE_BET: CommandSchema("Remove Bet", commands.RemoveBetCommand, parameters=[CommandParameter(name="amount", prompt_text="Enter amount to remove:", parser=int)]) if self.game_phase == BlackjackPhase.PLAYER_TURN and not self.player.cards else None,
-            BlackJackCommandRequest.START_ROUND: CommandSchema("Start Round", commands.StartRoundCommand) if self.bet > 0 and not self.player.cards else None,
-            BlackJackCommandRequest.HIT: CommandSchema("Hit", commands.HitCommand) if self.player.cards else None,
-            BlackJackCommandRequest.STAND: CommandSchema("Stand", commands.StandCommand) if self.player.cards else None,
+            BlackJackCommandRequest.START_ROUND: CommandSchema("Iniciar Ronda", commands.StartRoundCommand) if self.bet > 0 and not self.player.cards else None,
+            BlackJackCommandRequest.HIT: CommandSchema("Pedir", commands.HitCommand) if self.player.cards else None,
+            BlackJackCommandRequest.STAND: CommandSchema("Plantarse", commands.StandCommand) if self.player.cards else None,
             BlackJackCommandRequest.RESET: CommandSchema("Reset Game", commands.ResetCommand) if self.game_phase == BlackjackPhase.ROUND_END else None,
             BlackJackCommandRequest.END: CommandSchema("End Game", commands.EndCommand),
         }

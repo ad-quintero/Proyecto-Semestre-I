@@ -47,7 +47,7 @@ class PokerTerminalRenderer(Renderer):
 
 poker_positions = {
     "cards": "absolute top-1/2 left-2/5",
-    "deck": "absolute top-1/10 left-4/5 rotate-45",
+    "deck": "absolute top-1/5 left-4/5 rotate-45",
 }
 
 @dataclass
@@ -101,38 +101,41 @@ class PokerRenderer(Renderer):
 
         with self.container:
             if not self.game_area:
-                self.game_area = ui.element("div").classes('relative grow')
+                self.game_area = ui.element("div").classes('relative grow').style("background-image: url('assets/images/texture.png'); background-size: cover; background-position: center;")
             with self.game_area:
+                ui.image("assets/images/logo_poker.png").classes("absolute top-1/2 -translate-y-1/2 left-1/6 w-60 user-select-none pointer-events-none")
                 deck = ui.element("div").classes(f"{poker_positions['deck']} w-16 h-24 bg-gray-500 rounded-lg shadow-lg pointer-events-none")
 
                 with deck:
                     CardUI(card=CardView())
 
             if not self.buttons_area:
-                self.buttons_area = ui.column().classes('gap-2 gap-y-10 items-center pb-50 pt-10 bg-cyan-900 shadow-2xl')
+                self.buttons_area = ui.column().classes('relative basis-3/5 gap-2 gap-y-15 items-center justify-center bg-[#1b0047] shadow-2xl')
             with self.buttons_area:
-                with ui.row().classes("gap-10 text-white text-lg"):
-                    self.player_funds_label = ui.label("Player funds: 0$")
-                    ui.label("Bet: 0$").bind_text_from(self, "bet", backward=lambda f: f"Bet: {f}$")
+                ui.image("assets/images/logo.svg").classes("w-90 h-auto absolute top-10 right-10")
+
+                with ui.row().classes("gap-10 text-white text-4xl"):
+                    self.player_funds_label = ui.label("Fondos de jugador: 0$")
+                    ui.label("Apuesta: 0$").bind_text_from(self, "bet", backward=lambda f: f"Apuesta: {f}$")
 
                 with ui.row().classes('gap-2'):    
                     for bet_amount in [1, 5, 10, 25, 50, 100, 500, 1000]:
                         with ui.column():
-                            button_classes = 'disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out'
-                            button_add = ui.button(f"+{bet_amount}$", on_click=lambda bet=bet_amount: self.place_bet(bet)).classes(f"{button_classes} bg-green-5 hover:bg-green-6")
-                            button_remove = ui.button(f"-{bet_amount}$", on_click=lambda bet=bet_amount: self.place_bet(-bet)).classes(f"{button_classes} bg-red-5 hover:bg-red-6")
+                            button_classes = 'disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out text-4xl font-bold p-5 min-h-0 rouneded-lg'
+                            button_add = ui.button(f"+{bet_amount}$", on_click=lambda bet=bet_amount: self.place_bet(bet)).classes(f"{button_classes} bg-green-7 hover:bg-green-8")
+                            button_remove = ui.button(f"-{bet_amount}$", on_click=lambda bet=bet_amount: self.place_bet(-bet)).classes(f"{button_classes} bg-red-8 hover:bg-red-8")
                             self.bet_buttons[bet_amount] = BetButton(bet_amount=bet_amount, button=button_add, enabled=True)
                             self.bet_buttons[-bet_amount] = BetButton(bet_amount=-bet_amount, button=button_remove, enabled=True)
 
                 with ui.row().classes('gap-2'):
-                    self.discard_button = ui.button("Discard", on_click=lambda: self.event_bus.notify(PokerCommandRequest.DISCARD_CARDS, self.discard_cards_cmd)).classes('bg-blue-5 hover:bg-blue-6 disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out')
-                    self.discard_button.bind_enabled_from(self, "discard_cards_cmd")
-
-                    self.start_button = ui.button("Start Hand", on_click=lambda: self.event_bus.notify(PokerCommandRequest.NEW_HAND, self.start_cmd)).classes('bg-blue-5 hover:bg-blue-6 disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out')
+                    self.start_button = ui.button("Iniciar Mano", on_click=lambda: self.event_bus.notify(PokerCommandRequest.NEW_HAND, self.start_cmd)).classes('bg-blue-5 hover:bg-blue-6 disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out text-4xl')
                     self.start_button.bind_enabled_from(self, "start_cmd")
 
-                    self.end_button = ui.button("End Game", on_click=lambda: self.event_bus.notify(PokerCommandRequest.END_GAME, self.end_cmd)).classes('bg-gray-5 hover:bg-gray-6 disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out')
-                    self.end_button.bind_enabled_from(self, "end_cmd")
+                    self.discard_button = ui.button("Descartar", on_click=lambda: self.event_bus.notify(PokerCommandRequest.DISCARD_CARDS, self.discard_cards_cmd)).classes('bg-blue-5 hover:bg-blue-6 disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out text-4xl')
+                    self.discard_button.bind_enabled_from(self, "discard_cards_cmd")
+            
+            self.end_button = ui.button("Finalizar", on_click=lambda: self.event_bus.notify(PokerCommandRequest.END_GAME, self.end_cmd)).classes('bg-yellow-500! hover:bg-yellow-600! text-black disabled:brightness-50 disabled:cursor-not-allowed transition-colors duration-150 ease-in-out text-4xl absolute bottom-10 right-10 rounded-lg')
+            self.end_button.bind_enabled_from(self, "end_cmd")
     
     def reset_ui(self, _snapshot: PokerSnapshot):
         self.bet = 0
@@ -153,7 +156,7 @@ class PokerRenderer(Renderer):
 
     def change_bet(self, snapshot: PokerSnapshot):
         self.bet = snapshot.bet
-        self.player_funds_label.text = f"Player funds: ${snapshot.active_player.funds}"
+        self.player_funds_label.text = f"Fondos de jugador: ${snapshot.active_player.funds}"
 
     async def deal_cards(self, snapshot: PokerSnapshot):
         cards = snapshot.community_cards
@@ -168,8 +171,8 @@ class PokerRenderer(Renderer):
                         card_view.card.is_face_up = False
                         card = CardUI(card=card_view.card)
 
-                        label = ui.label("Held")
-                        label.classes("transition-opacity duration-200 ease-in-out text-sm text-gray-700 opacity-0")
+                        label = ui.label("Retenida")
+                        label.classes("transition-opacity duration-200 ease-in-out text-rose-700 bg-black rounded-lg opacity-0 font-bold p-1 text-xl")
                         self.cards.append(CardElement(card=card_elem, label=label, hold=False))
                         audio.play_random_sound_from_directory("assets/sfx/card")
 
@@ -234,8 +237,8 @@ class PokerRenderer(Renderer):
                         card_view.card.is_face_up = False
                         card = CardUI(card=card_view.card)
 
-                        label = ui.label("Held")
-                        label.classes("transition-opacity duration-200 ease-in-out text-sm text-gray-700 opacity-0")
+                        label = ui.label("Retenida")
+                        label.classes("transition-opacity duration-200 ease-in-out text-rose-700 bg-black rounded-lg opacity-0 font-bold p-1 text-xl")
                         self.cards[idx] = CardElement(card=card_elem, label=label, hold=False)
 
                     await asyncio.sleep(0.01)
@@ -255,11 +258,11 @@ class PokerRenderer(Renderer):
         if snapshot.payout_multiplier and snapshot.payout_multiplier > 0:
             with self.container:
                 audio.play_audio("casino/win.mp3")
-            self._show_end_modal(f"You won {snapshot.bet * snapshot.payout_multiplier}$!")
+            self._show_end_modal(f"¡Ganaste {snapshot.bet * snapshot.payout_multiplier}$!")
         else:
             with self.container:
                 audio.play_audio("casino/lose.mp3")
-            self._show_end_modal(f"You lost {snapshot.bet}$! Better luck next time.")
+            self._show_end_modal(f"¡Perdiste {snapshot.bet}$! Mejor suerte la próxima vez.")
 
     def _show_end_modal(self, msg: str):
         with self.container:
@@ -282,12 +285,12 @@ class PokerRenderer(Renderer):
                 ui.label(msg).classes("text-3xl text-white font-bold mb-4")
 
                 with ui.row().classes("justify-center gap-4"):
-                    ui.button("Close", on_click=end_game)
-                    ui.button("New Game", on_click=reset_game)
+                    ui.button("Cerrar", on_click=end_game)
+                    ui.button("Nuevo juego", on_click=reset_game)
 
     def setup_commands(self, snapshot: PokerSnapshot):
         self.bet = snapshot.bet
-        self.player_funds_label.set_text(f"Player Funds: ${snapshot.active_player.funds:.2f}")
+        self.player_funds_label.set_text(f"Fondos de jugador: ${snapshot.active_player.funds:.2f}")
         
         self.start_cmd = snapshot.available_commands.get(PokerCommandRequest.START_ROUND)
         self.end_cmd = snapshot.available_commands.get(PokerCommandRequest.END_GAME)
@@ -295,8 +298,6 @@ class PokerRenderer(Renderer):
         self.place_bet_cmd = snapshot.available_commands.get(PokerCommandRequest.CHANGE_BET)
         self.hold_card_cmd = snapshot.available_commands.get(PokerCommandRequest.HOLD_CARD)
         self.new_hand_cmd = snapshot.available_commands.get(PokerCommandRequest.NEW_HAND)
-
-        self.player_funds_label.text = f"Player funds: ${snapshot.active_player.funds}"
 
         for bet_button in self.bet_buttons.values():
             bet_button.button.disable()

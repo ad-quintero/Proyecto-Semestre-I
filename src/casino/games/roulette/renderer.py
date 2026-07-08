@@ -12,7 +12,7 @@ import asyncio
 
 from utils import audio
 
-class RouletteRenderer(Renderer):
+class RouletteTerminalRenderer(Renderer):
     def __init__(self, event_bus: EventBus):
         super().__init__(event_bus)
         self.event_bus.subscribe(RouletteEvents.BET_PLACED, self.on_bet) 
@@ -79,176 +79,182 @@ class RouletteRenderer(Renderer):
 
     def build_ui(self):
         if not self.container:
-            self.container = ui.element("div").classes("size-full flex justify-center items-center gap-10 bg-emerald-700")
+            self.container = ui.element("div").classes("size-full flex justify-start items-center bg-emerald-700")
 
             with self.container:
-                with ui.element("div").classes("relative rounded-full"):
-                    ui.element("div").classes("absolute [clip-path:polygon(0_0,100%_0,50%_100%)] h-5 w-10 bg-fuchsia-500 left-1/2 -translate-x-1/2 -top-7")
+                with ui.element("div").classes("basis-3/5 h-full flex items-center justify-center gap-10 bg-[#1b0047] p-20"):
+                    ui.image("assets/images/logo.svg").classes("w-90 h-auto absolute top-10 left-10")
 
-                    with ui.element("div").classes("flex flex-col items-center justify-center gap-5"):
-                        if not self.wheel:
-                            self.wheel = ui.element("div").classes("relative size-90 rounded-full transition-transform duration-1000 ease-in-out")
+                    end_game_btn = ui.button("Finalizar", on_click=lambda: self.event_bus.notify(RouletteCommandRequest.END_GAME, self.end_game_cmd))
+                    end_game_btn.classes("transition-colors duration-200 bg-yellow-7 hover:bg-yellow-9 text-black font-bold text-2xl py-2 px-4 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg self-end")
+                    end_game_btn.bind_enabled_from(self, "end_game_cmd")
+         
+                    with ui.element("div").classes("relative h-full"):
+                        ui.element("div").classes("absolute [clip-path:polygon(0_0,100%_0,50%_100%)] h-15 w-20 bg-pink-500 left-1/2 -translate-x-1/2 top-15")
 
-                        cell_size = 360 / len(ROULETTE_ORDER)
-                        self.wheel.style(f"transform: rotate({self.current_rotation}deg);")
-                        with self.wheel:
-                            ui.element("div").classes("absolute size-full rounded-full bg-transparent inset-ring-10 inset-ring-orange-800 z-10 after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:size-20 after:bg-white after:rounded-full")
+                        with ui.element("div").classes("h-full flex flex-col items-center justify-center gap-5"):
+                            if not self.wheel:
+                                self.wheel = ui.element("div").classes("relative h-3/5 aspect-square rounded-full transition-transform duration-1000 ease-in-out")
 
-                            for i, num in enumerate(ROULETTE_ORDER):
-                                color = "bg-red-400" if i % 2 == 1 else "bg-black"
-                                if i == 0:
-                                    color = "bg-green-800"
-                                ui.label(str(num)).classes(f"absolute font-bold origin-bottom h-1/2 left-1/2 -translate-x-1/2 {color} text-white text-center [clip-path:polygon(0_0,100%_0,50%_100%)] pt-4").style(f"width: 31px; transform: rotate({i * cell_size}deg);")
+                            cell_size = 360 / len(ROULETTE_ORDER)
+                            self.wheel.style(f"transform: rotate({self.current_rotation}deg);")
+                            with self.wheel:
+                                ui.element("div").classes("absolute size-full rounded-full bg-transparent inset-ring-10 inset-ring-orange-800 z-10 after:content-[''] after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:size-20 after:bg-white after:rounded-full")
 
-                        with ui.element("div").classes("flex gap-2 justify-center items-center mt-5"):
-                            spin_btn = ui.button("Spin", on_click=lambda: self.event_bus.notify(RouletteCommandRequest.SPIN_WHEEL, self.spin_wheel_cmd)).classes("size-20 transition-colors duration-200 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg")
-                            spin_btn.bind_enabled_from(self, "spin_wheel_cmd")
-                            
-                            end_game_btn = ui.button("End Game", on_click=lambda: self.event_bus.notify(RouletteCommandRequest.END_GAME, self.end_game_cmd)).classes("transition-colors duration-200 bg-red-5 hover:bg-red-6 text-white font-bold py-2 px-4 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg")
-                            end_game_btn.bind_enabled_from(self, "end_game_cmd")
+                                for i, num in enumerate(ROULETTE_ORDER):
+                                    color = "bg-red-400" if i % 2 == 1 else "bg-black"
+                                    if i == 0:
+                                        color = "bg-green-800"
+                                    ui.label(str(num)).classes(f"absolute font-bold origin-bottom h-1/2 left-1/2 -translate-x-1/2 rounded-t-lg {color} text-white text-center [clip-path:polygon(0_0,100%_0,50%_100%)] pt-4").style(f"width: 48px; transform: rotate({i * cell_size}deg);")
 
-                        self.winning_bets_display = ui.label("Payout: $0").classes("font-bold text-lg")
+                            self.winning_bets_display = ui.label("Ganancias: $0").classes("font-bold text-4xl text-white absolute bottom-0")
 
-                if not self.bets_table:
-                    self.bets_table = ui.element("div").classes("relative bg-white p-10 rounded-t-lg shadow-lg grid gap-0.5 grid-rows-14 grid-cols-5")
-
-                outside_bets_style = "writing-mode: sideways-lr;"
-                outside_bets_classes = "text-center bg-gray-600 text-white p-2 text-md font-bold select-none flex justify-center items-center relative"
-
-                number_bets_classes = "text-center text-white p-2 text-md font-bold select-none relative"
-                buttons_classes = "bg-blue-6 disabled:bg-transparent! transition-opacity duration-200 opacity-0 hover:opacity-50"
-
-                # Build the actual bets table
-                with self.bets_table:
-                    # 1. The Green "0" Header (Row 1)
-                    zero_classes = "text-center bg-green-800 text-white p-2 text-md font-bold select-none col-span-3 col-start-3 row-start-1 rounded-t-4xl flex justify-center items-center"
-                    zero_button = ui.label("0").classes(f"{zero_classes} relative")
-                    with zero_button:
-                        straight_bet = bets.StraightBet(number=0)
-                        ui.button(on_click=lambda bet=straight_bet: self.place_bet(bet)).classes(f"{zero_classes} {buttons_classes} absolute inset-0 w-full h-full").bind_enabled_from(self, "can_place_bet")
-                        self.chips[straight_bet.key] = self.create_chip(straight_bet).on_click(lambda bet=straight_bet: self.place_bet(bet))
-
-                        for i in range(1, 4):
-                            split_bet_right = bets.SplitBet(numbers=(0, i))
-                            ui.button(on_click=lambda bet=split_bet_right: self.place_bet(bet)).classes(f"{buttons_classes} absolute -bottom-1 left-{i-1}/3 p-0 min-h-0 h-2 w-1/3 transition-opacity duration-300 cursor-pointer z-10").bind_enabled_from(self, "can_place_bet")
-                            self.chips[split_bet_right.key] = self.create_chip(split_bet_right).on_click(lambda bet=split_bet_right: self.place_bet(bet)).classes(f"-bottom-3 left-{2*i-1}/6 -translate-x-1/2 z-20")
-
-                        for i in range(2):
-                            street_bet = bets.StreetBet(numbers=(0, i+1, i+2))
-                            ui.button(on_click=lambda bet=street_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute -bottom-2 left-{i+1}/3 -translate-x-1/2 p-0 min-h-0 size-3 transition-opacity duration-300 cursor-pointer z-10").bind_enabled_from(self, "can_place_bet")
-                            self.chips[street_bet.key] = self.create_chip(street_bet).on_click(lambda bet=street_bet: self.place_bet(bet)).classes(f"-bottom-3 left-{i+1}/3 -translate-x-1/2 z-20")
-
-                    # 2. Outside Bets (Columns 1 & 2, explicitly mapped to rows)
-                    low_bet_button = ui.label("1 to 18").classes(f"{outside_bets_classes} col-start-1 row-start-2 row-span-2").style(outside_bets_style)
-                    with low_bet_button:
-                        low_bet = bets.HighLowBet(is_high=False)
-                        ui.button(on_click=lambda: self.place_bet(low_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                        self.chips[low_bet.key] = self.create_chip(low_bet).on_click(lambda: self.place_bet(low_bet)).style("writing-mode: horizontal-tb;")
-                    
-                    first_12_button = ui.label("1st 12").classes(f"{outside_bets_classes} col-start-2 row-start-2 row-span-4").style(outside_bets_style)
-                    with first_12_button:
-                        first_12_bet = bets.DozenBet(dozen=1)
-                        ui.button(on_click=lambda: self.place_bet(first_12_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                        self.chips[first_12_bet.key] = self.create_chip(first_12_bet).on_click(lambda: self.place_bet(first_12_bet)).style("writing-mode: horizontal-tb;")
-
-                    even_bet_button = ui.label("EVEN").classes(f"{outside_bets_classes} col-start-1 row-start-4 row-span-2").style(outside_bets_style)
-                    with even_bet_button:
-                        even_bet = bets.OddEvenBet(is_odd=False)
-                        ui.button(on_click=lambda: self.place_bet(even_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                        self.chips[even_bet.key] = self.create_chip(even_bet).on_click(lambda: self.place_bet(even_bet)).style("writing-mode: horizontal-tb;")
-
-                    red_bet_button = ui.label("RED").classes(f"{outside_bets_classes} col-start-1 row-start-6 row-span-2 bg-red-6").style(outside_bets_style)
-                    with red_bet_button:
-                        red_bet = bets.ColorBet(color=bets.Color.RED)
-                        ui.button(on_click=lambda: self.place_bet(red_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                        self.chips[red_bet.key] = self.create_chip(red_bet).on_click(lambda: self.place_bet(red_bet)).style("writing-mode: horizontal-tb;")
-
-                    second_12_button = ui.label("2nd 12").classes(f"{outside_bets_classes} col-start-2 row-start-6 row-span-4").style(outside_bets_style)
-                    with second_12_button:
-                        second_12_bet = bets.DozenBet(dozen=2)
-                        ui.button(on_click=lambda: self.place_bet(second_12_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                        self.chips[second_12_bet.key] = self.create_chip(second_12_bet).on_click(lambda: self.place_bet(second_12_bet)).style("writing-mode: horizontal-tb;")
-
-                    black_bet_button = ui.label("BLACK").classes(f"{outside_bets_classes} col-start-1 row-start-8 row-span-2 bg-black").style(outside_bets_style)
-                    with black_bet_button:
-                        black_bet = bets.ColorBet(color=bets.Color.BLACK)
-                        ui.button(on_click=lambda: self.place_bet(black_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                        self.chips[black_bet.key] = self.create_chip(black_bet).on_click(lambda: self.place_bet(black_bet)).style("writing-mode: horizontal-tb;")
-
-                    odd_bet_button = ui.label("ODD").classes(f"{outside_bets_classes} col-start-1 row-start-10 row-span-2").style(outside_bets_style)
-                    with odd_bet_button:
-                        odd_bet = bets.OddEvenBet(is_odd=True)
-                        ui.button(on_click=lambda: self.place_bet(odd_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                        self.chips[odd_bet.key] = self.create_chip(odd_bet).on_click(lambda: self.place_bet(odd_bet)).style("writing-mode: horizontal-tb;")
-
-                    third_12_button = ui.label("3rd 12").classes(f"{outside_bets_classes} col-start-2 row-start-10 row-span-4").style(outside_bets_style)
-                    with third_12_button:
-                        third_12_bet = bets.DozenBet(dozen=3)
-                        ui.button(on_click=lambda: self.place_bet(third_12_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                        self.chips[third_12_bet.key] = self.create_chip(third_12_bet).on_click(lambda: self.place_bet(third_12_bet)).style("writing-mode: horizontal-tb;")
-
-                    high_bet_button = ui.label("19 to 36").classes(f"{outside_bets_classes} col-start-1 row-start-12 row-span-2").style(outside_bets_style)
-                    with high_bet_button:
-                        high_bet = bets.HighLowBet(is_high=True)
-                        ui.button(on_click=lambda: self.place_bet(high_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                        self.chips[high_bet.key] = self.create_chip(high_bet).on_click(lambda: self.place_bet(high_bet)).style("writing-mode: horizontal-tb;")
-
-                    # 3. Main Numbers Loop (Columns 3, 4, 5)
-                    for i in range(1, 37):
-                        # Calculate exact grid coordinates dynamically
-                        row = ((i - 1) // 3) + 2  # Starts at row 2 because row 1 is '0'
-                        col = ((i - 1) % 3) + 3   # Starts at col 3 because cols 1 & 2 are outside bets
-                        
-                        color = RouletteRenderer.determine_color(i)
-                        number_button = ui.label(str(i)).classes(f"{number_bets_classes} {color} col-start-{col} row-start-{row} num-{i}")
-
-                        with number_button:
-                            straight_bet = bets.StraightBet(number=i)
-                            ui.button(on_click=lambda bet=straight_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                            self.chips[straight_bet.key] = self.create_chip(straight_bet).on_click(lambda bet=straight_bet: self.place_bet(bet)).classes("z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2")
-
-                            split_bet_right = bets.SplitBet(numbers=(i, i + 1)) if col < 5 else None
-                            if split_bet_right:
-                                ui.button(on_click=lambda bet=split_bet_right: self.place_bet(bet)).classes(f"{buttons_classes} absolute -right-1.5 top-0 h-full p-0 min-h-0 w-2 z-20").bind_enabled_from(self, "can_place_bet")
-                                self.chips[split_bet_right.key] = self.create_chip(split_bet_right).on_click(lambda bet=split_bet_right: self.place_bet(bet)).classes("-right-3 top-1/2 -translate-y-1/2 z-20")
-                            else:
-                                street_bet = bets.StreetBet(numbers=(i- 2, i - 1, i))
-                                ui.button(on_click=lambda bet=street_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute -right-1.5 top-0 h-full w-2 p-0 z-20").bind_enabled_from(self, "can_place_bet")
-                                self.chips[street_bet.key] = self.create_chip(street_bet).on_click(lambda bet=street_bet: self.place_bet(bet)).classes("-right-3 top-1/2 -translate-y-1/2 z-30")
-
-                                if row <= 12:
-                                    line_bet = bets.LineBet(numbers=(i - 2, i - 1, i, i + 1, i + 2, i + 3))
-                                    ui.button(on_click=lambda bet=line_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute -right-1.5 -bottom-2 size-4 min-h-0 p-0 z-20").bind_enabled_from(self, "can_place_bet")
-                                    self.chips[line_bet.key] = self.create_chip(line_bet).on_click(lambda bet=line_bet: self.place_bet(bet)).classes("-right-3 -bottom-3 z-30")
-
-                            split_bet_bottom = bets.SplitBet(numbers=(i, i + 3)) if row <= 12 else None
-                            if split_bet_bottom:
-                                ui.button(on_click=lambda bet=split_bet_bottom: self.place_bet(bet)).classes(f"{buttons_classes} absolute -bottom-1.5 left-0 w-full p-0 min-h-0 h-2 transition-opacity duration-300 cursor-pointer z-20").bind_enabled_from(self, "can_place_bet")
-                                self.chips[split_bet_bottom.key] = self.create_chip(split_bet_bottom).on_click(lambda bet=split_bet_bottom: self.place_bet(bet)).classes("-bottom-3 left-1/2 -translate-x-1/2 z-20")
-
-                            if row <= 12 and col < 5:
-                                corner_bet = bets.CornerBet(numbers=(i, i + 1, i + 3, i + 4))
-                                ui.button(on_click=lambda bet=corner_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute -bottom-2 -right-2 size-4 p-0 min-h-0 z-30").bind_enabled_from(self, "can_place_bet")
-                                self.chips[corner_bet.key] = self.create_chip(corner_bet).on_click(lambda bet=corner_bet: self.place_bet(bet)).classes("-bottom-3 -right-3 z-30")
-
-                    # 4. Column Bets (Row 14)
-                    for c in range(3):
-                        col = c + 3
-                        col_bet_button = ui.label("2 to 1").classes(f"{number_bets_classes} bg-gray-600 col-start-{col} row-start-14")
-
-                        with col_bet_button:
-                            column_bet = bets.ColumnBet(column=c + 1)
-                            ui.button(on_click=lambda bet=column_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
-                            self.chips[column_bet.key] = self.create_chip(column_bet).on_click(lambda bet=column_bet: self.place_bet(bet)).classes("z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2")
-
-                    self.funds_display = ui.label("Funds: $0").classes("absolute top-2 left-2 m-4 font-bold text-lg")
-                    bet_input = ui.element("div").classes("flex flex-col-reverse items-center absolute bottom-0 left-0 pl-4 w-30")
-
-                    with bet_input:
-                        self.bet_slider = ui.slider(min=1, max=100, value=1, step=1).props("label: Bet Amount").classes("w-full")
-                        self.bet_number = ui.number("Bet Amount", min=1, max=100).classes("font-bold w-full").bind_value(self.bet_slider, "value")
+                    spin_btn = ui.button("Girar", on_click=lambda: self.event_bus.notify(RouletteCommandRequest.SPIN_WHEEL, self.spin_wheel_cmd)).classes("size-50 transition-colors duration-200 bg-red-5 hover:bg-red-6 text-white font-bold text-2xl py-2 px-4 disabled:cursor-not-allowed disabled:opacity-50 rounded-full self-end bg-transparent!")
+                    spin_btn.style("background-image: url('assets/images/button.png') !important; background-size: cover !important; background-position: center !important;")
+                    spin_btn.bind_enabled_from(self, "spin_wheel_cmd")
     
-                    self.total_bet_display = ui.label("Total Bet: $0").classes("absolute bottom-0 right-2 font-bold text-lg")
+                with ui.element("div").classes("basis-2/5 h-full flex items-center justify-center").style("background-image: url('assets/images/texture.png'); background-size: cover; background-position: center;"):
+                    if not self.bets_table:
+                        self.bets_table = ui.element("div").classes("w-2/3 h-4/5 relative bg-white p-10 rounded-t-lg shadow-lg grid gap-0.5 grid-rows-14 grid-cols-5")
+
+                    outside_bets_style = "writing-mode: sideways-lr;"
+                    outside_bets_classes = "text-center bg-gray-600 text-white p-2 text-md font-bold select-none flex justify-center items-center relative"
+
+                    number_bets_classes = "text-center text-white p-2 text-md font-bold select-none relative"
+                    buttons_classes = "bg-blue-6 disabled:bg-transparent! transition-opacity duration-200 opacity-0 hover:opacity-50"
+
+
+                    # Build the actual bets table
+                    with self.bets_table:
+                        # 1. The Green "0" Header (Row 1)
+                        zero_classes = "text-center bg-green-800 text-white p-2 text-md font-bold select-none col-span-3 col-start-3 row-start-1 rounded-t-4xl flex justify-center items-center"
+                        zero_button = ui.label("0").classes(f"{zero_classes} relative")
+                        with zero_button:
+                            straight_bet = bets.StraightBet(number=0)
+                            ui.button(on_click=lambda bet=straight_bet: self.place_bet(bet)).classes(f"{zero_classes} {buttons_classes} absolute inset-0 w-full h-full").bind_enabled_from(self, "can_place_bet")
+                            self.chips[straight_bet.key] = self.create_chip(straight_bet).on_click(lambda bet=straight_bet: self.place_bet(bet))
+
+                            for i in range(1, 4):
+                                split_bet_right = bets.SplitBet(numbers=(0, i))
+                                ui.button(on_click=lambda bet=split_bet_right: self.place_bet(bet)).classes(f"{buttons_classes} absolute -bottom-1 left-{i-1}/3 p-0 min-h-0 h-2 w-1/3 transition-opacity duration-300 cursor-pointer z-10").bind_enabled_from(self, "can_place_bet")
+                                self.chips[split_bet_right.key] = self.create_chip(split_bet_right).on_click(lambda bet=split_bet_right: self.place_bet(bet)).classes(f"-bottom-3 left-{2*i-1}/6 -translate-x-1/2 z-20")
+
+                            for i in range(2):
+                                street_bet = bets.StreetBet(numbers=(0, i+1, i+2))
+                                ui.button(on_click=lambda bet=street_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute -bottom-2 left-{i+1}/3 -translate-x-1/2 p-0 min-h-0 size-3 transition-opacity duration-300 cursor-pointer z-10").bind_enabled_from(self, "can_place_bet")
+                                self.chips[street_bet.key] = self.create_chip(street_bet).on_click(lambda bet=street_bet: self.place_bet(bet)).classes(f"-bottom-3 left-{i+1}/3 -translate-x-1/2 z-20")
+
+                        # 2. Outside Bets (Columns 1 & 2, explicitly mapped to rows)
+                        low_bet_button = ui.label("1 a 18").classes(f"{outside_bets_classes} col-start-1 row-start-2 row-span-2").style(outside_bets_style)
+                        with low_bet_button:
+                            low_bet = bets.HighLowBet(is_high=False)
+                            ui.button(on_click=lambda: self.place_bet(low_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                            self.chips[low_bet.key] = self.create_chip(low_bet).on_click(lambda: self.place_bet(low_bet)).style("writing-mode: horizontal-tb;")
+                        
+                        first_12_button = ui.label("1ra DOCENA").classes(f"{outside_bets_classes} col-start-2 row-start-2 row-span-4").style(outside_bets_style)
+                        with first_12_button:
+                            first_12_bet = bets.DozenBet(dozen=1)
+                            ui.button(on_click=lambda: self.place_bet(first_12_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                            self.chips[first_12_bet.key] = self.create_chip(first_12_bet).on_click(lambda: self.place_bet(first_12_bet)).style("writing-mode: horizontal-tb;")
+
+                        even_bet_button = ui.label("PAR").classes(f"{outside_bets_classes} col-start-1 row-start-4 row-span-2").style(outside_bets_style)
+                        with even_bet_button:
+                            even_bet = bets.OddEvenBet(is_odd=False)
+                            ui.button(on_click=lambda: self.place_bet(even_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                            self.chips[even_bet.key] = self.create_chip(even_bet).on_click(lambda: self.place_bet(even_bet)).style("writing-mode: horizontal-tb;")
+
+                        red_bet_button = ui.label("ROJO").classes(f"{outside_bets_classes} col-start-1 row-start-6 row-span-2 bg-red-6").style(outside_bets_style)
+                        with red_bet_button:
+                            red_bet = bets.ColorBet(color=bets.Color.RED)
+                            ui.button(on_click=lambda: self.place_bet(red_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                            self.chips[red_bet.key] = self.create_chip(red_bet).on_click(lambda: self.place_bet(red_bet)).style("writing-mode: horizontal-tb;")
+
+                        second_12_button = ui.label("2da DOCENA").classes(f"{outside_bets_classes} col-start-2 row-start-6 row-span-4").style(outside_bets_style)
+                        with second_12_button:
+                            second_12_bet = bets.DozenBet(dozen=2)
+                            ui.button(on_click=lambda: self.place_bet(second_12_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                            self.chips[second_12_bet.key] = self.create_chip(second_12_bet).on_click(lambda: self.place_bet(second_12_bet)).style("writing-mode: horizontal-tb;")
+
+                        black_bet_button = ui.label("NEGRO").classes(f"{outside_bets_classes} col-start-1 row-start-8 row-span-2 bg-black").style(outside_bets_style)
+                        with black_bet_button:
+                            black_bet = bets.ColorBet(color=bets.Color.BLACK)
+                            ui.button(on_click=lambda: self.place_bet(black_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                            self.chips[black_bet.key] = self.create_chip(black_bet).on_click(lambda: self.place_bet(black_bet)).style("writing-mode: horizontal-tb;")
+
+                        odd_bet_button = ui.label("IMPAR").classes(f"{outside_bets_classes} col-start-1 row-start-10 row-span-2").style(outside_bets_style)
+                        with odd_bet_button:
+                            odd_bet = bets.OddEvenBet(is_odd=True)
+                            ui.button(on_click=lambda: self.place_bet(odd_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                            self.chips[odd_bet.key] = self.create_chip(odd_bet).on_click(lambda: self.place_bet(odd_bet)).style("writing-mode: horizontal-tb;")
+
+                        third_12_button = ui.label("3ra DOCENA").classes(f"{outside_bets_classes} col-start-2 row-start-10 row-span-4").style(outside_bets_style)
+                        with third_12_button:
+                            third_12_bet = bets.DozenBet(dozen=3)
+                            ui.button(on_click=lambda: self.place_bet(third_12_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                            self.chips[third_12_bet.key] = self.create_chip(third_12_bet).on_click(lambda: self.place_bet(third_12_bet)).style("writing-mode: horizontal-tb;")
+
+                        high_bet_button = ui.label("19 a 36").classes(f"{outside_bets_classes} col-start-1 row-start-12 row-span-2").style(outside_bets_style)
+                        with high_bet_button:
+                            high_bet = bets.HighLowBet(is_high=True)
+                            ui.button(on_click=lambda: self.place_bet(high_bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                            self.chips[high_bet.key] = self.create_chip(high_bet).on_click(lambda: self.place_bet(high_bet)).style("writing-mode: horizontal-tb;")
+
+                        # 3. Main Numbers Loop (Columns 3, 4, 5)
+                        for i in range(1, 37):
+                            # Calculate exact grid coordinates dynamically
+                            row = ((i - 1) // 3) + 2  # Starts at row 2 because row 1 is '0'
+                            col = ((i - 1) % 3) + 3   # Starts at col 3 because cols 1 & 2 are outside bets
+                            
+                            color = RouletteRenderer.determine_color(i)
+                            number_button = ui.label(str(i)).classes(f"{number_bets_classes} {color} col-start-{col} row-start-{row} num-{i}")
+
+                            with number_button:
+                                straight_bet = bets.StraightBet(number=i)
+                                ui.button(on_click=lambda bet=straight_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                                self.chips[straight_bet.key] = self.create_chip(straight_bet).on_click(lambda bet=straight_bet: self.place_bet(bet)).classes("z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2")
+
+                                split_bet_right = bets.SplitBet(numbers=(i, i + 1)) if col < 5 else None
+                                if split_bet_right:
+                                    ui.button(on_click=lambda bet=split_bet_right: self.place_bet(bet)).classes(f"{buttons_classes} absolute -right-1.5 top-0 h-full p-0 min-h-0 w-2 z-20").bind_enabled_from(self, "can_place_bet")
+                                    self.chips[split_bet_right.key] = self.create_chip(split_bet_right).on_click(lambda bet=split_bet_right: self.place_bet(bet)).classes("-right-3 top-1/2 -translate-y-1/2 z-20")
+                                else:
+                                    street_bet = bets.StreetBet(numbers=(i- 2, i - 1, i))
+                                    ui.button(on_click=lambda bet=street_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute -right-1.5 top-0 h-full w-2 p-0 z-20").bind_enabled_from(self, "can_place_bet")
+                                    self.chips[street_bet.key] = self.create_chip(street_bet).on_click(lambda bet=street_bet: self.place_bet(bet)).classes("-right-3 top-1/2 -translate-y-1/2 z-30")
+
+                                    if row <= 12:
+                                        line_bet = bets.LineBet(numbers=(i - 2, i - 1, i, i + 1, i + 2, i + 3))
+                                        ui.button(on_click=lambda bet=line_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute -right-1.5 -bottom-2 size-4 min-h-0 p-0 z-20").bind_enabled_from(self, "can_place_bet")
+                                        self.chips[line_bet.key] = self.create_chip(line_bet).on_click(lambda bet=line_bet: self.place_bet(bet)).classes("-right-3 -bottom-3 z-30")
+
+                                split_bet_bottom = bets.SplitBet(numbers=(i, i + 3)) if row <= 12 else None
+                                if split_bet_bottom:
+                                    ui.button(on_click=lambda bet=split_bet_bottom: self.place_bet(bet)).classes(f"{buttons_classes} absolute -bottom-1.5 left-0 w-full p-0 min-h-0 h-2 transition-opacity duration-300 cursor-pointer z-20").bind_enabled_from(self, "can_place_bet")
+                                    self.chips[split_bet_bottom.key] = self.create_chip(split_bet_bottom).on_click(lambda bet=split_bet_bottom: self.place_bet(bet)).classes("-bottom-3 left-1/2 -translate-x-1/2 z-20")
+
+                                if row <= 12 and col < 5:
+                                    corner_bet = bets.CornerBet(numbers=(i, i + 1, i + 3, i + 4))
+                                    ui.button(on_click=lambda bet=corner_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute -bottom-2 -right-2 size-4 p-0 min-h-0 z-30").bind_enabled_from(self, "can_place_bet")
+                                    self.chips[corner_bet.key] = self.create_chip(corner_bet).on_click(lambda bet=corner_bet: self.place_bet(bet)).classes("-bottom-3 -right-3 z-30")
+
+                        # 4. Column Bets (Row 14)
+                        for c in range(3):
+                            col = c + 3
+                            col_bet_button = ui.label("2 a 1").classes(f"{number_bets_classes} bg-gray-600 col-start-{col} row-start-14")
+
+                            with col_bet_button:
+                                column_bet = bets.ColumnBet(column=c + 1)
+                                ui.button(on_click=lambda bet=column_bet: self.place_bet(bet)).classes(f"{buttons_classes} absolute inset-0 size-full").bind_enabled_from(self, "can_place_bet")
+                                self.chips[column_bet.key] = self.create_chip(column_bet).on_click(lambda bet=column_bet: self.place_bet(bet)).classes("z-10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2")
+
+                        self.funds_display = ui.label("Fondos del jugador: $0").classes("absolute top-2 left-2 m-4 font-bold text-lg")
+                        bet_input = ui.element("div").classes("flex flex-col-reverse items-center absolute bottom-0 left-0 pl-4 w-30")
+
+                        with bet_input:
+                            self.bet_slider = ui.slider(min=1, max=100, value=1, step=1).props("label: Apuesta").classes("w-full")
+                            self.bet_number = ui.number("Apuesta", min=1, max=100).classes("font-bold w-full").bind_value(self.bet_slider, "value")
+        
+                        self.total_bet_display = ui.label("Apuesta total: $0").classes("absolute bottom-0 right-2 font-bold text-lg")
 
     def place_bet(self, bet: bets.RouletteBet):
         """Places a bet on the table. The player must have sufficient funds to cover the bet amount, and the bet will be added to any existing bet of the same type on the table."""
@@ -371,7 +377,7 @@ class RouletteRenderer(Renderer):
 
         self.current_rotation = target_rotation
 
-        self.winning_bets_display.set_text(f"Payout: ${sum(bet.earnings() for bet in snapshot.payouts)}")
+        self.winning_bets_display.set_text(f"Ganacia: ${sum(bet.earnings() for bet in snapshot.payouts)}")
 
         self.spin_signal.set()
         self.can_place_bet = True
@@ -399,5 +405,5 @@ class RouletteRenderer(Renderer):
         total_bet = sum(bet.bet for bet in snapshot.bets.values())
         self.bet_slider._props["max"] = snapshot.active_player.funds - total_bet
         self.bet_number._props["max"] = snapshot.active_player.funds - total_bet
-        self.funds_display.set_text(f"Funds: ${snapshot.active_player.funds}")
-        self.total_bet_display.set_text(f"Total Bet: ${total_bet}")
+        self.funds_display.set_text(f"Fondos: ${snapshot.active_player.funds}")
+        self.total_bet_display.set_text(f"Apuesta total: ${total_bet}")

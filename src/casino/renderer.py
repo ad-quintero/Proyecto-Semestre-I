@@ -15,150 +15,32 @@ class CasinoRenderer:
 
     def build_ui(self, game_to_render: Renderer = None):
         ui.add_css(
-            """
-            .signature-path {
-                fill: none;
-                stroke: #a855f7; /* Vibrant Purple */
-                stroke-width: 2;
-                stroke-linecap: round;
-                stroke-linejoin: round;
-                
-                /* Dash setup: Increase these numbers if the path becomes more complex */
-                stroke-dasharray: 1200;
-                stroke-dashoffset: 1200;
-                
-                animation: 10s ease-in-out forwards draw;
-            }
-                        
+            """         
             .intro {
                 z-index: 20;
-                background-color: black;
+                background-color: #1b0047;
                 animation: 8s ease-out forwards fadeOut;
                 overflow: hidden;
-            }
+                position: absolute;
+                inset: 0;
+                // display: none;
 
-            .game-btn {
-                width: 20rem;
-                aspect-ratio: 16/9;
-                font-family: ui-serif, Georgia, "Times New Roman", Times, serif;
-
-                filter: drop-shadow(0 0 0.75rem #212121);
-                
-                button {
-                    transition: opacity 0.5s ease-in-out;
-                    opacity: 20%;
-                    color: white;
-                    font-size: 2rem;
+                &:after {
+                    content: "";
                     position: absolute;
-                    inset: 0;
-                    z-index: 10;
-                    background-color: transparent;
-
-                    &:hover {
-                        opacity: 1;
-                        cursor: pointer;
-                    }
+                    width: 100%;
+                    height: 33.3%;
+                    bottom: 0;
+                    background-image: linear-gradient(to bottom, #8070b7, transparent);
+                    z-index: -10;
                 }
-            }
-
-            .icon {
-                transition: all 0.5s ease-in-out;
-            }
-
-            .blackjack:hover {
-                button {
-                    opacity: 1;
-                }
-
-                .heart {
-                    bottom: 60%;
-                    left: 5%;
-                    transform: translate(-50%, 50%) rotate(45deg);
-                }
-
-                .spade {
-                    top: 40%;
-                    right: 5%;
-                    transform: translate(50%, -50%) rotate(135deg);
-                }
-
-                .diamond {
-                    top: 55%;
-                    left: 41%;
-                    transform: translate(-50%, -50%) rotate(0deg);
-                }
-
-                .club {
-                    bottom: 60%;
-                    right: -3%;
-                    transform: translate(-50%, 50%) rotate(45deg);
-                }
-            }
-
-            .poker {
-                .card {
-                    transition: all 0.5s ease-in-out;
-                    transform-origin: bottom right;
-                    position: absolute;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-
-                    height: 70%;
-                    aspect-ratio: 1/1.43;
-                    background-color: white;
-                    border-radius: 0.5rem;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 1.5rem;
-                    color: red;
-                    filter: brightness(0.2);
-                }
-
-                &:hover {
-                    .card:nth-child(1) {
-                        transform: translate(-50%, -50%) rotate(-15deg) translateX(-10%);
-                    }
-
-                    .card:nth-child(2) {
-                        transform: translate(-50%, -50%) rotate(-7deg) translateX(-5%);
-                    }
-
-                    .card:nth-child(3) {
-                        transform: translate(-50%, -50%) rotate(0deg);
-                    }
-
-                    .card:nth-child(4) {
-                        transform: translate(-50%, -50%) rotate(7deg) translateX(5%);
-                    }
-
-                    .card:nth-child(5) {
-                        transform: translate(-50%, -50%) rotate(15deg) translateX(10%);
-                    }
-                }
-            }
-
-            .slot-machine:hover {
-                .reel-icon {
-                    animation: reelSpin 0.2s infinite linear;
-                }
-            }
-
-            @keyframes draw {
-                to { stroke-dashoffset: 0; }
             }
 
             @keyframes fadeOut {
                 0% { opacity: 1; }
-                90% { opacity: 1; }
-                99.9% { height: 100%; }
+                80% { opacity: 1; }
+                99% { height: 100% }
                 100% { opacity: 0; height: 0; }
-            }
-
-            @keyframes reelSpin {
-                to { transform: translateY(500%); }
             }
             """
         )
@@ -166,57 +48,35 @@ class CasinoRenderer:
         with ui.element("div"):
             self.audio = audio.play_audio("casino/bg_music.mp3", True).classes("bg-music")
             ui.run_javascript('''
-                document.getElementsByClassName("bg-music")[0].volume = 0.5;
+                document.getElementsByClassName("bg-music")[0].volume = 0.3;
             ''')
 
         self.container.clear()
         with self.container:
             if not self.showed_intro:
-                with ui.element('div').classes('absolute inset-0 flex flex-col items-center justify-center intro'):
-                    with ui.element('svg').classes("h-fit w-100"):
-                        ui.element('path').classes('signature-path').props(
-                            'd="M38.563 62.875L28.875 69.438Q24.438 69.438 20.500 67.719Q16.563 66 13.563 63.063Q10.563 60.125 8.875 56.313Q7.188 52.500 7.188 48.188L7.188 48.188Q7.188 43.500 8.844 39.656Q10.500 35.813 13.250 33Q16 30.188 19.313 28.500L19.313 28.500Q18.063 29.063 16.563 29.063L16.563 29.063Q15.438 29.063 13.875 28.469Q12.313 27.875 10.594 27.469Q8.875 27.063 7.219 27.469Q5.563 27.875 4.313 29.813L4.313 29.813L2.813 30.438Q3.063 29.938 3.906 28.563Q4.750 27.188 6.063 25.594Q7.375 24 9.063 22.844Q10.750 21.688 12.688 21.688L12.688 21.688Q14.250 21.688 15.406 22.250Q16.563 22.813 17.719 23.344Q18.875 23.875 20.438 23.875L20.438 23.875Q22.188 23.875 23.406 23.031Q24.625 22.188 25.688 21.375L25.688 21.375L27.188 22.813Q26.938 23 25.750 23.875Q24.563 24.750 22.875 26.438Q21.188 28.125 19.563 30.625Q17.938 33.125 16.844 36.469Q15.750 39.813 15.750 44.063L15.750 44.063Q15.750 48.500 17.500 52.625L17.500 52.625L21 51.125L21 35.875Q21 33.625 21.375 32.063Q21.750 30.500 22.844 29.094Q23.938 27.688 26.125 25.969Q28.313 24.250 31.875 21.625L31.875 21.625L33.125 21.563L33.125 26.688L41.688 21.188L47.125 25.688L49.625 23.625L50.750 25L48 27.250L48 60.063L51 62.688L52.938 61.063L53.875 61.938L45.563 68.750L38.563 62.875ZM29.063 30.438L29.063 49.563L18.250 54.125Q20.125 57.688 23.438 60.156Q26.750 62.625 31.375 62.875L31.375 62.875L31.375 23.875Q30.188 24.813 29.594 26.281Q29 27.750 29.063 30.438L29.063 30.438ZM39.250 30.625L35.813 26.813L33.125 28.500L33.125 42.063L39.250 39L39.250 30.625ZM39.250 41L33.125 44.125L33.125 48.625L39.250 45.563L39.250 41ZM34.125 62.813L34.125 62.813L39.250 59.375L39.250 47.563L33.125 50.625L33.125 62.875Q33.625 62.875 34.125 62.813ZM57.313 29.688L57.313 29.688L56.125 29.125Q57.438 25 59.969 23.156Q62.500 21.313 64.625 21.313L64.625 21.313Q66.250 21.313 67.531 21.750Q68.813 22.188 70.094 22.656Q71.375 23.125 73 23.125L73 23.125Q74.188 23.125 74.875 22.531Q75.563 21.938 76.188 21.313L76.188 21.313L77.375 21.938Q74 25.750 71.906 26.969Q69.813 28.188 67.563 28.188L67.563 28.188Q65.813 28.188 64.406 27.563Q63 26.938 61.250 26.938L61.250 26.938Q59.750 26.938 58.750 27.750Q57.750 28.563 57.313 29.688ZM64.938 75.125L64.938 75.125Q62 75.125 60.094 72.875Q58.188 70.625 58.188 67.813L58.188 67.813Q58.188 64.500 60.313 62.500Q62.438 60.500 65.563 60.500L65.563 60.500Q70 60.500 72.219 59.469Q74.438 58.438 75.156 56.438Q75.875 54.438 75.875 51.500L75.875 51.500L75.875 28.750Q74.313 29.875 73.313 31.625Q72.313 33.375 72.313 36.063L72.313 36.063L72.313 50Q72.313 53.125 70.656 55Q69 56.875 66.531 57.781Q64.063 58.688 61.500 58.875L61.500 58.875L61.188 57.688Q63.250 57.438 63.719 55.656Q64.188 53.875 64.188 51.875L64.188 51.875L64.188 47.188L62.125 47.188Q60.313 47.188 59.250 48.125Q58.188 49.063 58.500 50.813L58.500 50.813L57.313 50.813Q56.375 49.063 56.375 47.125L56.375 47.125Q56.375 44.250 58.375 42.344Q60.375 40.438 64.250 39.938L64.250 39.938Q64.563 36.875 66.156 34.594Q67.750 32.313 71.500 29.938L71.500 29.938L84 22Q86.188 23.813 88.375 25.625Q90.563 27.438 92.688 29.250L92.688 29.250L96.063 27.188L96.063 22.625L97.875 22.625L97.875 26.125L104.688 22.063L112.625 29.125L115.188 27L116.313 28.375L113.063 31L113.063 60.063L115.750 62.438L119.313 60.063L120.188 61L110.625 68.750L103.438 62.750L101.375 64.250L100.750 63.375L104.375 60.875L104.375 50.938Q103 49.750 101.156 49.656Q99.313 49.563 97.875 50.625L97.875 50.625L97.875 61.375L99.875 60.063L100.750 61L90.250 68.750L83.063 62.750L81 64.250L80.375 63.375L84.313 60.688L84.313 51Q82.938 49.750 81.063 49.656Q79.188 49.563 77.688 50.625L77.688 50.625L77.688 53.063L77.688 59.063Q77.688 59.063 77.688 59.063L77.688 59.063Q77.688 63.688 74.656 65.781Q71.625 67.875 67.438 68.188L67.438 68.188Q65.750 68.313 64.063 68.781Q62.375 69.250 62.375 71.063L62.375 71.063Q62.375 72.250 63.344 72.906Q64.313 73.563 65.500 73.563L65.500 73.563Q65.625 73.563 65.688 73.563L65.688 73.563L65.688 75.063Q65.313 75.125 64.938 75.125ZM104.375 41.188L104.375 33.688L97.875 28.500L97.875 41.438Q99.313 42.500 101.156 42.438Q103 42.375 104.375 41.188L104.375 41.188ZM84.313 41.063L84.313 33.438L77.688 28.875L77.688 41.438Q79.188 42.500 81.063 42.406Q82.938 42.313 84.313 41.063L84.313 41.063ZM92.375 31.188L92.375 59.500L96.063 62.250L96.063 28.938L92.375 31.188ZM77.688 43.250L77.688 48.813Q79.125 47.813 80.969 47.844Q82.813 47.875 84.313 49.188L84.313 49.188L84.313 42.875Q82.875 44.125 81.031 44.219Q79.188 44.313 77.688 43.250L77.688 43.250ZM97.875 43.250L97.875 48.813Q99.313 47.875 101.125 47.875Q102.938 47.875 104.375 49.063L104.375 49.063L104.375 43Q103 44.125 101.188 44.219Q99.375 44.313 97.875 43.250L97.875 43.250ZM120.500 69.375L119.313 69.375Q120.375 66.500 122.438 64.031Q124.500 61.563 127.438 59.938L127.438 59.938L133.938 49.063Q130.750 47.500 128.625 44.406Q126.500 41.313 126.500 37L126.500 37Q126.500 32.250 128.906 28.750Q131.313 25.250 135.219 23.313Q139.125 21.375 143.563 21.375L143.563 21.375Q149.438 21.375 154.438 24.625L154.438 24.625L158.563 21.125L159.938 22.250L158.875 23.438Q158.063 24.563 157.719 25.938Q157.375 27.313 157.375 29.125L157.375 29.125L157.375 53Q157.375 56.125 157.781 58.313Q158.188 60.500 160.063 61.938L160.063 61.938L162.188 60.188L164 62.250L155.688 68.938Q151.438 66.125 148.188 62.313L148.188 62.313L141.188 68.313Q136.938 64.688 131.375 64.688L131.375 64.688Q128.313 64.688 125.438 65.938Q122.563 67.188 120.500 69.375L120.500 69.375ZM129.938 38.750L129.938 38.750Q129.938 41.813 131.219 44.156Q132.500 46.500 134.500 48.063L134.500 48.063L146.250 28.375Q144 27.500 141.625 27.500L141.625 27.500Q138.313 27.500 135.656 28.969Q133 30.438 131.469 32.969Q129.938 35.500 129.938 38.750ZM147.875 29.125L137.813 46L149.313 46L149.313 30Q148.625 29.500 147.875 29.125L147.875 29.125ZM149.313 52.438L134.063 52.438L134.438 51.750L130.250 58.750Q132.875 57.875 135.750 57.875L135.750 57.875Q141.125 57.875 145.563 60.813L145.563 60.813L149.313 57.625L149.313 52.438ZM207.313 69.875L207.313 69.875Q202.813 69.875 198.938 68.031Q195.063 66.188 192.156 63Q189.250 59.813 187.625 55.719Q186 51.625 186 47.125L186 47.125Q186 41.313 188.375 36.563Q190.750 31.813 194.625 28.469Q198.500 25.125 203.063 23.563L203.063 23.563L203.625 24.500Q199.500 26.625 196.938 30.750L196.938 30.750L213.438 20.688L213.438 20.688L213.438 20.688Q215.750 22.438 218.375 23.750Q221 25.063 224 26.063L224 26.063L226 24.375L226.500 25L219.063 32.750Q215.125 31.188 211.438 29.063L211.438 29.063L211.438 62.688Q215.813 62.125 218.969 59.563Q222.125 57 223.750 53.750L223.750 53.750L224.938 53.750Q224.688 58.438 222.313 62.063Q219.938 65.688 216.031 67.781Q212.125 69.875 207.313 69.875ZM206.813 26.813L206.813 50.188L196 54.688Q197.875 58.375 201.188 60.594Q204.500 62.813 209.250 62.813L209.250 62.813Q209.438 62.813 209.625 62.813L209.625 62.813L209.625 28Q208.438 27.313 207.313 26.500L207.313 26.500L206.813 26.813ZM193.688 43.875L193.688 43.875Q193.688 49.063 195.313 53.188L195.313 53.188L198.750 51.750L198.750 31.750L195.438 33.750Q193.688 38.250 193.688 43.875ZM244.375 64.250L237.750 69.063Q235.813 68.813 233.875 67.750Q231.938 66.688 230.656 64.938Q229.375 63.188 229.375 60.813L229.375 60.813Q229.375 58.313 231.219 56Q233.063 53.688 236.563 51.813L236.563 51.813Q234.438 50.875 232.969 49.469Q231.500 48.063 231.500 45.875L231.500 45.875Q231.500 43.813 232.750 42.563Q234 41.313 235.375 40.625L235.375 40.625L242.250 37L251.500 42.938L254 40.938L255.125 42.250L251.875 44.938L251.875 60.688L254.875 63.688L257.563 61.875L257.813 63.063L249.125 69.063L244.375 64.250ZM233.250 45.500L233.250 45.500Q233.250 47.500 235.094 48.813Q236.938 50.125 239.469 50.906Q242 51.688 244.063 52.188L244.063 52.188L244.063 46.313L236.688 41.750Q235.313 42.500 234.281 43.406Q233.250 44.313 233.250 45.500ZM236.938 55.125L236.938 55.125Q236.938 56.938 237.594 58.906Q238.250 60.875 239.531 62.281Q240.813 63.688 242.750 63.688L242.750 63.688Q243.625 63.688 244.063 63.500L244.063 63.500L244.063 54Q242.563 53.688 240.906 53.281Q239.250 52.875 237.688 52.250L237.688 52.250Q237.375 52.750 237.156 53.500Q236.938 54.250 236.938 55.125ZM263.875 70.375L263.313 72Q261.688 71.375 260.531 69.875Q259.375 68.375 259.375 66.188L259.375 66.188Q259.375 64.250 260.500 62.188Q261.625 60.125 265.313 56.750L265.313 56.750L260.563 53L260.563 44.250L273.500 36.750Q274.188 37.750 275.344 38.625Q276.500 39.500 278.063 39.500L278.063 39.500Q279.313 39.500 280.188 38.750Q281.063 38 281.188 36.875L281.188 36.875L281.250 36.875L281.250 36.875L283 36.875Q282.625 40.438 281.406 43.219Q280.188 46 277.563 48.438L277.563 48.438L282.938 52.438L282.938 61.875L270.563 69.375Q269.938 68.250 268.781 67.344Q267.625 66.438 265.938 66.438L265.938 66.438Q264.875 66.438 263.938 67.063Q263 67.688 263 68.813L263 68.813Q263 69.875 263.875 70.375L263.875 70.375ZM268.625 40.813L268.625 48.938L271.250 51.563L275.813 47.625Q276.500 47.063 277.188 46.344Q277.875 45.625 278.500 44.750L278.500 44.750Q277.063 45.375 275.375 45.375L275.375 45.375Q273.375 45.375 271.500 44.281Q269.625 43.188 268.625 40.813L268.625 40.813ZM267.563 59.813L267.563 59.813Q270.250 59.813 272.125 61.281Q274 62.750 274.875 64.625L274.875 64.625L274.875 56.500L271.375 53.750L269.125 55.688Q267.500 57.125 265.906 58.500Q264.313 59.875 263.188 61.313L263.188 61.313Q265.063 59.813 267.563 59.813ZM300.250 29.125L294.250 34.313L288.938 28.250L294.938 23.063L300.250 29.125ZM305.063 62.750L296.063 69.063L290.063 63.688L287.938 65.188L287.063 64L290.938 61.250L290.938 44.813L288.875 42.125L286.438 43.625L285.563 42.375L293.938 36.688L298.750 42.375L298.750 61.250L300.813 63.375L303.563 61.563L305.063 62.750ZM320.938 64.250L314.938 69.688L307.750 64L310.125 61.875L310.125 45.250L307.750 42.563L305.313 44.063L304.438 42.875L313.125 36.875L317.938 42.250L324.813 36.875L331.875 42.938L334.500 40.813L335.625 42.188L332.625 44.625L332.625 61L335.313 63.375L337.688 61.563L338.875 63.375L329.625 69.688L323.313 64L325.438 61.875L325.438 46.438L320.938 42.563L318.250 44.688L318.250 61.875L320.938 64.250ZM343.563 62.438L341 64.500L339.875 63.188L343.063 60.563L343.063 44.500L357.125 36.438L366.125 43.313L366.125 60.375L352.375 68.750L343.563 62.438ZM351.188 59.188L358.375 64L358.375 46L351.188 41.188L351.188 59.188Z"'
-                        )
+                with ui.element('div').classes('absolute inset-0 flex items-center justify-center intro'):
+                    ui.image("assets/images/laptop.png").classes("w-1/2 h-auto")
+
+                    with ui.column().classes('items-center justify-center gap-4'):
+                        ui.label("Bienvenido").classes("text-6xl font-bold text-white w-fit mx-auto font-serif")
+                        ui.image("assets/images/logo.svg").classes("w-full h-auto")
+                        ui.label("Online").classes("text-6xl p-2 rounded-sm text-white bg-pink-700 w-fit mx-auto font-serif")
                 self.showed_intro = True
 
             if game_to_render is not None:
                 game_to_render.build_ui()
             else:
-                with ui.element('div').classes('size-full flex flex-col items-center justify-center bg-gray-900'):
-                    ui.label("Welcome to UMA CASINO!").classes("text-4xl font-bold text-purple-600 w-fit mx-auto font-serif")
-                    with ui.element('div').classes('grid grid-cols-2 gap-4 mt-8'):
-                        with ui.element("div").classes("bg-gray-800 relative overflow-hidden game-btn blackjack"):
-                            btn = ui.element("button").on("click", lambda: self.on_game_selected("Blackjack"))
-                            btn._text = "Blackjack"
-                            ui.label("♥️").classes("absolute -left-10 -bottom-10 -rotate-45 text-7xl brightness-20 heart icon")
-                            ui.label("♠️").classes("absolute -right-10 -top-10 -rotate-135 text-7xl brightness-20 spade icon")
-                            ui.label("♦️").classes("absolute -left-10 -top-10 rotate-45 text-7xl brightness-20 diamond icon")
-                            ui.label("♣️").classes("absolute -right-10 -bottom-10 -rotate-45 text-7xl brightness-20 club icon")
-                        with ui.element("div").classes("bg-gray-800 relative overflow-hidden game-btn poker"):
-                            btn = ui.element("button").on("click", lambda: self.on_game_selected("Poker"))
-                            btn._text = "Poker"
+                with ui.element('div').classes('size-full flex items-center justify-around bg-[#1b0047]'):
+                    with ui.grid(rows=2, columns=2,).classes('gap-8'):
+                        for name, icon_path in [("Blackjack", "assets/images/blackjack.jpg"),
+                                                ("Poker", "assets/images/poker.jpg"),
+                                                ("Slot Machine", "assets/images/slot_machine.jpg"),
+                                                ("Roulette", "assets/images/roulette.jpg")]:
+                            btn = ui.element("button").classes("size-90 flex flex-col group relative cursor-pointer").on("click", lambda n=name: self.on_game_selected(n))
+                            with btn:
+                                ui.image(icon_path).classes("object-fill absolute inset-0 w-full h-full rounded-lg")
+                                ui.label(name).classes("absolute bottom-0 h-3/10 w-full text-center text-white text-4xl bg-zinc-800 font-serif flex justify-center items-center border-3 border-black group-hover:bg-zinc-800/50 group-hover:h-full transition-all duration-300")
 
-                            for i in range(5):
-                                with ui.element("div").classes("card"):
-                                    ui.label("♦️")
-                                    ui.label(f"{10 if i == 0 else 'J' if i == 1 else 'Q' if i == 2 else 'K' if i == 3 else 'A'}")
-                        
-                        with ui.element("div").classes("bg-gray-800 relative overflow-hidden game-btn slot-machine"):
-                            btn = ui.element("button").on("click", lambda: self.on_game_selected("Slot Machine"))
-                            btn._text = "Slot Machine"
-                            
-                            with ui.element("div").classes("absolute flex flex-col w-4/5 bg-red-5 mx-auto inset-0 flex items-center justify-between brightness-20 pb-4"):
-                                with ui.element("div").classes("w-full flex items-center justify-center"):
-                                    for i in range(3):
-                                        with ui.element("div").classes("p-2 bg-gray-400 m-2 size-12 flex flex-col gap-10 no-wrap overflow-hidden items-center justify-center text-3xl rounded"):
-                                            for icon in ["🍒", "🍋", "🔔", "💰", "🍒"]:
-                                                ui.label(icon).classes("reel-icon")
-
-                                ui.label("SPIN").classes("text-2xl font-bold text-white bg-green-500 px-4 py-2 rounded cursor-pointer")
-
-                        with ui.element("div").classes("group bg-gray-800 relative overflow-hidden game-btn roulette flex items-center justify-center"):
-                            btn = ui.element("button").on("click", lambda: self.on_game_selected("Roulette"))
-                            btn._text = "Roulette"
-                            
-                            ui.element("div").classes("wheel h-4/5 aspect-square rounded-full group-hover:animate-spin bg-[conic-gradient(red_0deg_30deg,black_30deg_60deg,red_60deg_90deg,black_90deg_120deg,red_120deg_150deg,black_150deg_180deg,red_180deg_210deg,black_210deg_240deg,red_240deg_270deg,black_270deg_300deg,red_300deg_330deg,black_330deg_360deg)] brightness-20")
-                                
+                    with ui.column().classes("gap-10 max-w-1/3 flex flex-col items-center justify-center"):
+                        ui.image("assets/images/logo.svg").classes("w-full h-auto")
+                        ui.label("Juega con nosotros. ¡La suerte está de tu lado!").classes("text-5xl text-white font-serif leading-20")
