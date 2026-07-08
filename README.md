@@ -1,4 +1,4 @@
-# Proyecto Final, Semestre I Programación, Universidad Momenteávila
+# UMA Casino
 
 Desarrollado como proyecto final del primer semestre de programación de la Universidad Monteavila (marzo-julio 2026) bajo la dirección del profesor Ernesto Lugo.
 

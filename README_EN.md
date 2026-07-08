@@ -1,4 +1,4 @@
-# Final Project, First Semester Programming, Universidad Monteavila
+# UMA Casino
 
 Developed as the final project for the first semester of programming at Universidad Monteavila (March-July 2026) under the guidance of Professor Ernesto Lugo.
 
